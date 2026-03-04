@@ -2,7 +2,7 @@ import os
 import re
 import shutil
 import subprocess
-from typing import Any, Annotated
+from typing import Any, Annotated, List
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend
@@ -289,6 +289,7 @@ def create_comparison_png(
 
 async def run_galfit(
     config_file: Annotated[str, "the path to the GALFIT configuration file"],
+    options: Annotated[List[str], "options that control how galfit runs"] = []
 ) -> dict[str, Any]:
     """Execute GALFIT with the given configuration file.
 
@@ -297,7 +298,10 @@ async def run_galfit(
     """
     galfit_bin = os.getenv("GALFIT_BIN", "galfit")
     config_file = os.path.abspath(config_file)
-    command = [galfit_bin, config_file]
+    options = options or []
+    if not isinstance(options, list):
+        options = [options]
+    command = [galfit_bin] + options + [config_file]
 
     # Parse config file for additional paths
     config_paths = _parse_galfit_config(config_file)
