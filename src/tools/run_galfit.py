@@ -2,6 +2,7 @@ import os
 import re
 import shutil
 import subprocess
+import hashlib
 from typing import Any, Annotated, List
 import numpy as np
 import matplotlib
@@ -365,7 +366,7 @@ async def run_galfit(
 
     # Cleanup the workspace
     ws_dir = os.path.dirname(output_file)
-    ar_dir = os.path.join(ws_dir, "archives", datetime.datetime.now().strftime("%Y%m%dT%H%M%S"))
+    ar_dir = os.path.join(ws_dir, "archives", "%s.%s" % (datetime.datetime.now().strftime("%Y%m%dT%H%M%S"), hashlib.md5(config_file.encode("utf-8")).hexdigest()[:8]))
     os.makedirs(ar_dir, exist_ok=True)
     shutil.move(os.path.join(working_dir, "fit.log"), ar_dir)
     shutil.move(output_file, ar_dir)
