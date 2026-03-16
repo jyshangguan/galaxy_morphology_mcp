@@ -4,7 +4,6 @@ Prompt templates for GALFIT and GalfitS analysis using VLLM multimodal models.
 This module centralizes all prompt templates used for analyzing galaxy morphology
 fitting results from GALFIT (single-band) and GalfitS (multi-band) tools.
 """
-import os
 import sys
 from pathlib import Path
 try:
@@ -15,7 +14,6 @@ except ImportError as e:
     if str(prompts_dir) not in sys.path:
         sys.path.insert(0, str(prompts_dir))
     from prompts import prompts
-    print("Load prompts successfully", file=sys.stderr)
 
 GALFIT_SYSTEM_MESSAGE = prompts.GALFIT_SYSTEM_MESSAGE
 GALFITS_SYSTEM_MESSAGE = prompts.GALFITS_SYSTEM_MESSAGE
