@@ -152,7 +152,8 @@ def multi_thresh_plot(
     mean, median, std = sigma_clipped_stats(img, mask=mask)
 
     # Determine upper threshold based on 99th percentile
-    upper_value = np.percentile(img, 99)
+    # Use nanpercentile to handle NaN values in the image
+    upper_value = np.nanpercentile(img, 99)
     upper_thresh = (upper_value - median) / std
 
     # Generate 10 logarithmically-spaced thresholds
