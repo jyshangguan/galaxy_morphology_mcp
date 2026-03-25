@@ -20,6 +20,7 @@ from tools.run_galfits import run_galfits
 from tools.analyze_image import galfit_analyze_by_vllm, galfits_analyze_by_vllm
 from tools.multi_thresh_plot import multi_thresh_plot
 from tools.pix2radec import pix2radec
+from tools.guess_mass import guess_mass
 from starlette.responses import Response, JSONResponse
 from dotenv import load_dotenv
 
@@ -37,6 +38,7 @@ app.add_tool(run_galfits)
 app.add_tool(galfit_analyze_by_vllm)
 app.add_tool(galfits_analyze_by_vllm)
 app.add_tool(pix2radec)
+app.add_tool(guess_mass)
 
 
 def _galfit_readiness() -> tuple[str, str | None, bool]:
