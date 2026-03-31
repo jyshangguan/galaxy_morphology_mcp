@@ -9,6 +9,7 @@ HEADER_RE = re.compile(r"(?m)^#\s*(Object|Component)\s*number:\s*(\d+)\s*$")
 COMP_TYPE_RE  = re.compile(r"(?m)^\s*0\)\s*([A-Za-z_]+)\b")
 POS_RE        = re.compile(r"(?m)^\s*1\)\s*([+-]?\d+(?:\.\d+)?)\s+([+-]?\d+(?:\.\d+)?)\b")
 MAG_RE        = re.compile(r"(?m)^\s*3\)\s*([+-]?\d+(?:\.\d+)?)\b")
+N_RE          = re.compile(r"(?m)^\s*5\)\s*([+-]?\d+(?:\.\d+)?)\b")
 
 @dataclass
 class Block:
@@ -104,6 +105,29 @@ def _get_first_sersic_xy_mag(
     if not mm:
         raise ValueError("Cannot parse first sersic '3) mag' line.")
     return float(pm.group(1)), float(pm.group(2)), float(mm.group(1))
+
+def _get_first_sersic_attrs(
+    blocks: Annotated[List[Annotated[Block, "the blocks of the feedme file"]], "the blocks of the feedme file"]
+    ) -> Annotated[Tuple[Annotated[float, "the x coordinate of the first sersic component"],
+                        Annotated[float, "the y coordinate of the first sersic component"],
+                        Annotated[float, "the magnitude of the first sersic component"]],
+                    "the x, y, and magnitude of the first sersic component"]:
+    """
+    Get the x, y, and magnitude of the first sersic component from the blocks of the feedme file
+    blocks: the blocks of the feedme file
+    return: the x, y, and magnitude of the first sersic component
+    """
+    s = _get_first_sersic_block(blocks)
+    pm = POS_RE.search(s)
+    mm = MAG_RE.search(s)
+    nm = N_RE.search(s)
+    if not pm:
+        raise ValueError("Cannot parse first sersic '1) x y' line.")
+    if not mm:
+        raise ValueError("Cannot parse first sersic '3) mag' line.")
+    if not nm:
+        raise ValueError("Cannot parse first sersic '5) n' line.")    
+    return float(pm.group(1)), float(pm.group(2)), float(mm.group(1)), float(nm.group(1))
 
 def _ensure_header(
     block_text: Annotated[str, "the text of the block of the feedme file"],
@@ -208,6 +232,12 @@ def add_components(
             t = str(item.get("type", "")).lower().strip()
             if t == "sersic":
                 bt = first_sersic_block
+                # update attributes
+                index = item.get("n", None) or item.get("index", None)
+                if index is not None:
+                    #n_pattern = r"(^\s*5\))\s+[-+]?\d*\.\d+|\d+"
+                    n_pattern = r"^(\s*5\))\s+[-+]?\d*\.?\d+"
+                    bt = re.sub(n_pattern, r"\1 " + str(index), bt, flags=re.MULTILINE)
             elif t == "psf":
                 delta = float(item.get("delta_mag", 1.5))
                 bt = _make_psf_from_first_sersic(blocks, delta_mag=delta)
@@ -238,12 +268,21 @@ def add_components(
 #   dict like {"type":"psf","delta_mag":2.0}  (optional customization)
 if __name__ == "__main__":
 
-    feedme_file = "test_data/goodsn_8758_f160w_standard.feedme"
-    new_feedme_file = "test_data/goodsn_8758_f160w.feedme"
-    feedme_file = sys.argv[1]
-    new_feedme_file = sys.argv[2]
+    # feedme_file = "test_data/goodsn_8758_f160w_standard.feedme"
+    # new_feedme_file = "test_data/goodsn_8758_f160w.feedme"
+    # feedme_file = sys.argv[1]
+    # new_feedme_file = sys.argv[2]
 
-    new_components = ["sersic"] #insert_list
+    feedme_file = "galfit_multicomponent/goodsn_9076/round_5/goodsn_9076_f160w.feedme"
+    new_feedme_file = "/tmp/new.feedme"
+
+    #new_components = ["sersic"] #insert_list
+    new_components = [
+        {
+            "type": "sersic",
+            "n": "1.333"
+        }
+    ]
     new_text = add_components(feedme_file, new_components)
     with open(new_feedme_file, "w") as f:
         f.write(new_text)
