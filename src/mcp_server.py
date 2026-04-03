@@ -92,7 +92,7 @@ def _galfits_readiness() -> dict[str, Any]:
 
     # Don't let missing heavy deps (e.g. jax) crash the MCP server.
     try:
-        module_ok = importlib.util.find_spec("galfits.galfitS") is not None
+        module_ok = importlib.util.find_spec("galfits") is not None
     except Exception:
         module_ok = False
     path_ok = shutil.which("galfits") is not None
