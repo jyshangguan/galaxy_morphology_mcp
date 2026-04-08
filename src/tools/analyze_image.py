@@ -17,7 +17,7 @@ dotenv.load_dotenv()
 
 
 # 多模态模型对galfits 或 galfit 的优化结果进行分析
-# 输入图像路径和优化总结文件。VLLM阅读图像，一步步分析图像中的内容，并结合优化总结文件，生成推理描述，说明图像中的主要特征和优化结果。并提供下一步的决策建议
+# 输入图像路径和优化总结文件。VLM阅读图像，一步步分析图像中的内容，并结合优化总结文件，生成推理描述，说明图像中的主要特征和优化结果。并提供下一步的决策建议
 
 
 def encode_image_to_base64(image_path: str) -> Optional[str]:
@@ -74,7 +74,7 @@ def read_file_content(file_path: str) -> Optional[str]:
         return None
 
 
-def create_vllm_client(
+def create_vlm_client(
     llm_type: str = "openai",
     config: Optional[dict] = None
 ) -> tuple[Optional[LLMBase], Optional[str]]:
@@ -101,7 +101,7 @@ def create_vllm_client(
         return None, f"Error creating LLM client: {str(e)}"
 
 
-def call_vllm_api(
+def call_vlm_api(
     client: LLMBase,
     base64_image: str,
     additional_content: list[dict[str, Any]],
@@ -152,7 +152,7 @@ def call_vllm_api(
 
 # Galfit 专用的分析接口
 
-def galfit_analyze_by_vllm(
+def galfit_analyze_by_vlm(
     image_file: Annotated[str, "Path to the combined image file [png file] containing three stamps displayed horizontally: original, model, residual"],
     summary_file: Annotated[str, "Path to the optimization summary file containing detailed fitting information"],
 ) -> dict[str, Any]:
@@ -185,7 +185,7 @@ def galfit_analyze_by_vllm(
             - analysis_file (str, optional): Path to the saved analysis markdown file (only on success)
     """
     # Create LLM client
-    client, error = create_vllm_client()
+    client, error = create_vlm_client()
     if error:
         return {
             "status": "failure",
@@ -234,8 +234,8 @@ def galfit_analyze_by_vllm(
     # System message
     system_message = prompt.GALFIT_SYSTEM_MESSAGE
 
-    # Call VLLM API
-    analysis, error = call_vllm_api(
+    # Call VLM API
+    analysis, error = call_vlm_api(
         client=client,
         base64_image=base64_image,
         additional_content=additional_content,
@@ -271,7 +271,7 @@ def galfit_analyze_by_vllm(
 
 # GalfitS 专用分析接口 - 多波段拟合
 
-def galfits_analyze_by_vllm(
+def galfits_analyze_by_vlm(
     image_file: Annotated[str, "Path to the combined image file [png file] containing three stamps displayed horizontally: original, model, residual"],
     summary_file: Annotated[str, "Path to the optimization summary file containing detailed fitting information"],
     config_file: Annotated[str, "Path to the GalfitS configuration file used for the optimization"],
@@ -298,7 +298,7 @@ def galfits_analyze_by_vllm(
 
     This function performs a comprehensive analysis of GalfitS multi-band optimization results by combining
     visual inspection with quantitative evaluation from the optimization summary, configuration file,
-    and SED (Spectral Energy Distribution) model. Unlike the single-band fitting in `galfit_analyze_by_vllm`,
+    and SED (Spectral Energy Distribution) model. Unlike the single-band fitting in `galfit_analyze_by_vlm`,
     GalfitS performs simultaneous fitting across multiple photometric bands, constraining the galaxy morphology
     parameters consistently while allowing the SED to vary across bands.
 
@@ -371,10 +371,10 @@ def galfits_analyze_by_vllm(
 
     Note:
         This function should be used for GalfitS results which perform multi-band fitting with SED modeling.
-        For single-band GALFIT results without SED information, use `galfit_analyze_by_vllm` instead.
+        For single-band GALFIT results without SED information, use `galfit_analyze_by_vlm` instead.
     """
     # Create LLM client
-    client, error = create_vllm_client()
+    client, error = create_vlm_client()
     if error:
         return {
             "status": "failure",
@@ -462,7 +462,7 @@ def galfits_analyze_by_vllm(
         ]
 
     # Call VLLM API with main image and optionally SED image
-    analysis, error = call_vllm_api(
+    analysis, error = call_vlm_api(
         client=client,
         base64_image=base64_image,
         additional_content=additional_content,

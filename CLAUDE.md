@@ -172,7 +172,7 @@ Claude Code uses the SKILL to perform these actions autonomously:
 │     └── Or use bash: galfits config.lyric --work ./output           │
 │                                                                     │
 │  5. ANALYZE (Action - Review results)                              │
-│     ├── Use mcp__galmcp__galfits_analyze_by_vllm for AI diagnosis  │
+│     ├── Use mcp__galmcp__galfits_analyze_by_vlm for AI diagnosis  │
 │     ├── Check residual images (per-band analysis)                   │
 │     ├── Review summary statistics (.gssummary)                      │
 │     ├── Score fitting quality (0-100 per band)                      │
@@ -237,7 +237,7 @@ galfits config.lyric --work ./output --num_steps 5000
 **Method 1: MCP Analysis (Recommended)**
 ```python
 # Claude Code directly calls MCP tool
-analysis = mcp__galmcp__galfits_analyze_by_vllm(
+analysis = mcp__galmcp__galfits_analyze_by_vlm(
     image_file="output/galaxy.png",      # Original|Model|Residual
     sed_file="output/galaxy.sed.png",     # SED plot
     summary_file="output/galaxy.gssummary",
@@ -262,7 +262,7 @@ analysis = mcp__galmcp__galfits_analyze_by_vllm(
 | **Add Profile component** | Edit + SKILL | Edit: Add Pa/Pb/Pc section |
 | **Add Nuclei component** | Edit + SKILL | Edit: Add Na section |
 | **Run fit** | MCP or Bash | `mcp__galmcp__run_galfits()` |
-| **Analyze results** | MCP or Read | `mcp__galmcp__galfits_analyze_by_vllm()` |
+| **Analyze results** | MCP or Read | `mcp__galmcp__galfits_analyze_by_vlm()` |
 | **Get examples** | `/skill galfits-manual` | → examples/ |
 
 ### SKILL Sections for Common Edits
@@ -302,7 +302,7 @@ Execute GalfitS multi-band fitting.
 - `config_file`: Path to .lyric config file
 - `timeout_sec`: Optional (default: 3600)
 
-### mcp__galmcp__galfits_analyze_by_vllm
+### mcp__galmcp__galfits_analyze_by_vlm
 Analyze results using multimodal AI.
 
 **Use when:**
@@ -388,7 +388,7 @@ Claude Code autonomously implements the complete workflow:
                  ▼
 ┌────────────────────────────────────────────────────────────────────┐
 │ 5. ANALYZE RESULTS (Action)                                           │
-│ mcp__galmcp__galfits_analyze_by_vllm(                                │
+│ mcp__galmcp__galfits_analyze_by_vlm(                                │
 │     image_file="output/*.png"                                        │
 │     summary_file="output/*.gssummary"                               │
 │ )                                                                    │
@@ -431,7 +431,7 @@ Claude Code autonomously implements the complete workflow:
    Ga2) ['a','b','c']  # Update to include bar
    ```
 4. **EXECUTE**: `mcp__galmcp__run_galfits(config_file="config.lyric")`
-5. **ANALYZE**: `mcp__galmcp__galfits_analyze_by_vllm(...)`
+5. **ANALYZE**: `mcp__galmcp__galfits_analyze_by_vlm(...)`
 6. **REPORT**: "Bar component added. New fit score: 75/100 (Good)"
 
 ---

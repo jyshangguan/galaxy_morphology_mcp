@@ -10,8 +10,8 @@
 |---------|---------|
 | `run_galfit` | 执行 GALFIT 单波段拟合，返回优化的 FITS 文件、对比图像和拟合摘要 |
 | `run_galfits` | 执行 GalfitS 多波段同时拟合，返回摘要文件、图像、SED 模型等结果 |
-| `galfit_analyze_by_vllm` | 使用多模态大模型分析 GALFIT 拟合结果（图像 + 摘要） |
-| `galfits_analyze_by_vllm` | 使用多模态大模型分析 GalfitS 多波段拟合结果（图像 + SED + 摘要） |
+| `galfit_analyze_by_vlm` | 使用多模态大模型分析 GALFIT 拟合结果（图像 + 摘要） |
+| `galfits_analyze_by_vlm` | 使用多模态大模型分析 GalfitS 多波段拟合结果（图像 + SED + 摘要） |
 
 ### 输出说明
 
@@ -110,7 +110,7 @@ python -m mcp_server --transport http --port 38507
 
 **分析拟合结果：**
 ```
-调用 galfit_analyze_by_vllm，传入：
+调用 galfit_analyze_by_vlm，传入：
 - image_file: 对比图像路径 (PNG)
 - summary_file: 拟合摘要文件路径 (.md)
 ```

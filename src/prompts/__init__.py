@@ -48,11 +48,19 @@ class Prompts(metaclass=SingletonMeta):
 
     def get_galfits_analysis_prompt(self, summary_content, config_content, user_prompt):
         filename = "galfits_analysis_prompt.md"
-        return self._read_prompt_and_render(filename, 
-            summary_content=summary_content, 
+        return self._read_prompt_and_render(filename,
+            summary_content=summary_content,
             config_content=config_content,
             user_instruction=user_prompt or "<None>"
-        )    
+        )
+
+    def get_classification_system_message(self):
+        filename = "classification_system_message.md"
+        return self._read_prompt(filename=filename)
+
+    def get_classification_prompt(self):
+        filename = "classification_prompt.md"
+        return self._read_prompt(filename=filename)
 
     @property
     def GALFIT_SYSTEM_MESSAGE(self):

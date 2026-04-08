@@ -17,8 +17,9 @@ from mcp.server.transport_security import TransportSecuritySettings
 from tools.modify_feedme import add_components, delete_components
 from tools.run_galfit import run_galfit
 from tools.run_galfits import run_galfits
-from tools.analyze_image import galfit_analyze_by_vllm, galfits_analyze_by_vllm
-from tools.multi_thresh_plot import multi_thresh_plot
+from tools.analyze_image import galfit_analyze_by_vlm
+from tools.analyze_image import galfits_analyze_by_vlm
+from tools.view_original_image import view_original_image
 from tools.pix2radec import pix2radec
 from starlette.responses import Response, JSONResponse
 from dotenv import load_dotenv
@@ -31,13 +32,36 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastMCP(name='galaxy-morphology-mcp')
-app.add_tool(add_components)
-app.add_tool(delete_components)
-app.add_tool(run_galfit)
-app.add_tool(run_galfits)
-app.add_tool(galfit_analyze_by_vllm)
-app.add_tool(galfits_analyze_by_vllm)
-app.add_tool(pix2radec)
+
+def _register_tools():
+    """Conditionally register tools based on environment variables."""
+    has_galfit = bool(os.getenv("GALFIT_BIN"))
+    has_galfits = bool(os.getenv("GALFITS_BIN"))
+
+    if has_galfit:
+        app.add_tool(add_components)
+        app.add_tool(delete_components)
+        app.add_tool(run_galfit)
+        app.add_tool(galfit_analyze_by_vlm)
+        logger.info("Registered GALFIT tools (GALFIT_BIN is set)")
+
+    if has_galfits:
+        app.add_tool(run_galfits)
+        app.add_tool(galfits_analyze_by_vlm)
+        logger.info("Registered GalfitS tools (GALFITS_BIN is set)")
+
+    # Shared tools — always available
+    app.add_tool(view_original_image)
+    app.add_tool(pix2radec)
+
+    if not has_galfit and not has_galfits:
+        logger.warning(
+            "Neither GALFIT_BIN nor GALFITS_BIN is set. "
+            "Only generic tools (view_original_image, pix2radec) are registered."
+        )
+
+load_dotenv()
+_register_tools()
 
 def _galfit_readiness() -> tuple[str, str | None, bool]:
     """Return (configured, resolved_path, is_executable)."""
@@ -221,8 +245,6 @@ def main(argv: list[str] | None = None) -> None:
     current_dir = os.path.dirname(os.path.abspath(__file__))
     if current_dir not in sys.path:
         sys.path.insert(0, current_dir)
-
-    load_dotenv()
 
     configured, resolved, ok = _galfit_readiness()
     if ok:
