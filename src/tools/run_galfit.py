@@ -443,4 +443,5 @@ async def run_galfit(
         "optimized_fits_file": os.path.join(ar_dir, os.path.basename(output_file)),
         "image_file": os.path.join(ar_dir, os.path.basename(comparison_png_path)),
         "summary_file": os.path.join(ar_dir, os.path.basename(summary)),
+        "log_file": os.path.join(ar_dir, "fit.log"),
     }
