@@ -283,18 +283,18 @@ def do_pure_sed_fitting(
     return results            
 
 def ImageFitting(
-    path: Annotated[str, "Path to the galfits config file (.lyric)"], 
+    lyric_file: Annotated[str, "Path to the galfits config file (.lyric)"], 
     workplace: Annotated[str, "Path to the galfits workplace where gssummary can be found"],
     args: Annotated[Optional[str|List[str]], "Additional command line arguments for galfits fitting. It can be a single string or a list of strings."] = None
 ) -> Annotated[dict, "A dict containing the status and content of the galfits fitting result. The status can be 'success' or 'error', and the content provides detailed information about the result or error message."]:
     args = args or []
     if isinstance(args, str):
         args = [args]
-    command = ["python", "-m", "galfits.galfitS", "--config", f'{path}', '--workplace', f'{workplace}'] + args
+    command = ["python", "-m", "galfits.galfitS", "--config", f'{lyric_file}', '--workplace', f'{workplace}'] + args
     try:
         cpi = subprocess.run(
             command,
-            cwd=os.path.dirname(path),
+            cwd=os.path.dirname(lyric_file),
             capture_output=True,
             text=True,
             check=True,
@@ -302,12 +302,12 @@ def ImageFitting(
         )
         return {
             "status": "success",
-            "message": f"run galfits successfully for {path}"
+            "message": f"run galfits successfully for {lyric_file}"
         }
     except subprocess.CalledProcessError as e:
         return {
             "status": "error",
-            "message": f"run galfits failed for {path}: {e.stderr}"
+            "message": f"run galfits failed for {lyric_file}: {e.stderr}"
         }
     except TimeoutError as e:
         return {
@@ -559,12 +559,12 @@ if __name__ == '__main__':
     workplace = "/home/jiangbo/galaxy_morphology_mcp/GALFITS_examples/latest/results/obj692"
     args = ["--fit_method", "ES"]
 
-    result = ImageFitting(path=lyric_file, workplace=workplace, args=args)
+    result = ImageFitting(lyric_file=lyric_file, workplace=workplace, args=args)
     print(result)
 
     result = PureSEDFitting(lyric_file=lyric_file, workplace=workplace, new_lyric_file=new_lyric_file, mock_root=None, args=args)
     print(result)
 
-    result = ImageSEDFitting(path=new_lyric_file, workplace=workplace + "_2", args=args)
+    result = ImageSEDFitting(lyric_file=new_lyric_file, workplace=workplace + "_2", args=args)
     print(result)
 

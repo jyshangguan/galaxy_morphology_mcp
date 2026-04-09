@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  fastapi:
+    build: .
+    working_dir: /app
+    command: uvicorn src.service.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./taskdir:/workspace
+    restart: unless-stopped
+
+  celery:
+    build: .
+    working_dir: /app
+    command: celery -A src.service.tasks worker --loglevel=info
+    volumes:
+      - ./taskdir:/workspace
+    restart: unless-stopped
