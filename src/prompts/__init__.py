@@ -83,17 +83,6 @@ class Prompts(metaclass=SingletonMeta):
         filename = "component_specification_galfits.md"
         return self._read_prompt(filename=filename)
 
-    def get_fitlog_system_message(self):
-        filename = "fitlog_analysis_system_message.md"
-        return self._read_prompt(filename=filename)
-
-    def get_fitlog_analysis_prompt(self, console_content, summary):
-        filename = "fitlog_analysis_prompt.md"
-        return self._read_prompt_and_render(filename,
-            console_content=console_content,            
-            summary=summary
-        )
-
     @property
     def GALFIT_SYSTEM_MESSAGE(self):
         return self.get_galfit_system_message()
@@ -101,10 +90,6 @@ class Prompts(metaclass=SingletonMeta):
     @property
     def GALFITS_SYSTEM_MESSAGE(self):
         return self.get_galfits_system_message()
-
-    @property
-    def FITLOG_SYSTEM_MESSAGE(self):
-        return self.get_fitlog_system_message()
 
 prompts = Prompts()        
 

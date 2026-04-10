@@ -13,19 +13,19 @@ from .analyze_image import (
 dotenv.load_dotenv()
 
 
-def residual_analysis_by_vlm(
+def component_analysis(
     image_file: Annotated[str, "Path to the combined residual image file [png file] containing three stamps: original, model, residual"],
     summary_file: Annotated[str, "Path to the optimization summary file containing detailed fitting information"],
     mode: Annotated[str, "Fitting mode: 'single-band' for GALFIT or 'multi-band' for GalfitS"],
-    custom_instructions: Annotated[str, "Optional custom instructions to guide the residual analysis"] = "",
+    custom_instructions: Annotated[str, "Optional custom instructions to guide the component analysis"] = "",
 ) -> dict[str, Any]:
     """
-    Analyze the residual images from galaxy fitting using a multimodal model.
+    Analyze galaxy fitting results to determine component composition and parameter adjustments.
 
-    This function specializes in residual diagnosis: it examines the residual image stamps
-    (Original | Model | Residual) alongside the fitting summary, follows a structured
-    diagnostic decision tree to identify systematic patterns, and provides actionable
-    parameter modification suggestions (e.g., add component types, initial parameter values).
+    This function examines the fitting result stamps (Original | Model | Residual) alongside
+    the fitting summary, identifies missing or misconfigured physical components (bulge, disk,
+    bar, AGN, etc.), and provides actionable suggestions for component addition/removal and
+    parameter refinement.
 
     Args:
         image_file (str): Path to the combined image file containing three stamps displayed horizontally:
@@ -99,12 +99,12 @@ def residual_analysis_by_vlm(
 
     # Save analysis
     base_name = os.path.splitext(os.path.basename(image_file))[0]
-    output_file = os.path.join(os.path.dirname(image_file), f"{base_name}_residual_analysis.md")
+    output_file = os.path.join(os.path.dirname(image_file), f"{base_name}_component_analysis.md")
 
     try:
         with open(output_file, 'w', encoding='utf-8') as f:
             f.write(analysis)
-        print(f"Residual analysis saved to: {output_file}")
+        print(f"Component analysis saved to: {output_file}")
     except Exception as e:
         print(f"Warning: Failed to save analysis to file: {e}")
         output_file = None

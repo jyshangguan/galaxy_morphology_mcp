@@ -24,8 +24,6 @@ CLASSIFICATION_SYSTEM_MESSAGE = prompts.get_classification_system_message()
 get_classification_prompt = prompts.get_classification_prompt
 RESIDUAL_ANALYSIS_SYSTEM_MESSAGE = prompts.get_residual_analysis_system_message()
 get_residual_analysis_prompt = prompts.get_residual_analysis_prompt
-FITLOG_SYSTEM_MESSAGE = prompts.FITLOG_SYSTEM_MESSAGE
-get_fitlog_analysis_prompt = prompts.get_fitlog_analysis_prompt
 get_component_specification_galfit = prompts.get_component_specification_galfit
 get_component_specification_galfits = prompts.get_component_specification_galfits
 
@@ -109,24 +107,4 @@ workflow_galfits = _make_prompt(
         "three-phase diagnosis logic and SED modelling. `workflow_galfits [lyric_file]`"
     ),
     md_file="workflow_galfits.md",
-)
-
-component_specification_galfit = _make_prompt(
-    name="component_specification_galfit",
-    title="GALFIT Component Specification",
-    description=(
-        "GALFIT component types (sersic, expdisk, ferrer, edgedisk, psf) "
-        "and their parameter specifications."
-    ),
-    md_file="component_specification_galfit.md",
-)
-
-component_specification_galfits = _make_prompt(
-    name="component_specification_galfits",
-    title="GalfitS Component Specification",
-    description=(
-        "GalfitS component types and their parameter specifications "
-        "for multi-band fitting."
-    ),
-    md_file="component_specification_galfits.md",
 )

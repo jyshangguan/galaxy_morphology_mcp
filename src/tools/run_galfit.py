@@ -12,7 +12,6 @@ from matplotlib.gridspec import GridSpec
 from astropy.io import fits
 import datetime
 import glob
-from .fitlog_analysis import analyze_fitlog
 
 from .extract_summary_galfit import extract_summary_from_galfit
 
@@ -460,8 +459,7 @@ async def run_galfit(
         "- optimized_fits_file: FITS file with original, model, and residual image extensions.\n"
         "- image_file: 1-row 3-column PNG showing original | model | residual (blue overlay = masked pixels).\n"
         "- summary_file: Markdown file containing fitted parameters, chi-squared statistics, and observation metadata.\n"
-        "- console_log_file: GALFIT console log from this run.\n"
-        "  Tip: Use analyze_fitlog tool with console_log_file to check for parameter anomalies (degeneracy, uncertainty, boundary hits, unphysical results)."
+        "- console_log_file: GALFIT console log from this run.\n"        
     )
     return {
         "status": "success",

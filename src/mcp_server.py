@@ -19,11 +19,10 @@ from tools.run_galfit import run_galfit
 from tools.run_galfits import run_galfits
 from tools.analyze_image import galfit_analyze_by_vlm
 from tools.analyze_image import galfits_analyze_by_vlm
-from tools.residual_analysis import residual_analysis_by_vlm
-from tools.fitlog_analysis import analyze_fitlog
+from tools.residual_analysis import component_analysis
 from tools.view_original_image import view_original_image
 from tools.pix2radec import pix2radec
-from tools.prompt import workflow_galfit, workflow_galfits, component_specification_galfit, component_specification_galfits
+from tools.prompt import workflow_galfit, workflow_galfits
 from starlette.responses import Response, JSONResponse
 from dotenv import load_dotenv
 
@@ -45,22 +44,19 @@ def _register_tools_and_prompts():
         # app.add_tool(add_components)
         # app.add_tool(delete_components)
         app.add_tool(run_galfit)
-        app.add_tool(analyze_fitlog)
         # app.add_tool(galfit_analyze_by_vlm)
         app.add_prompt(workflow_galfit)
-        # app.add_prompt(component_specification_galfit)
         logger.info("Registered GALFIT tools (GALFIT_BIN is set)")
 
     if has_galfits:
         app.add_tool(run_galfits)
         app.add_tool(galfits_analyze_by_vlm)
         app.add_prompt(workflow_galfits)
-        app.add_prompt(component_specification_galfits)
         logger.info("Registered GalfitS tools (GALFITS_BIN is set)")
 
     # Shared tools — always available
     app.add_tool(view_original_image)
-    app.add_tool(residual_analysis_by_vlm)
+    app.add_tool(component_analysis)
     # app.add_tool(pix2radec)
 
     if not has_galfit and not has_galfits:
