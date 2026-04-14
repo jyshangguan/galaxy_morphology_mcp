@@ -1,5 +1,4 @@
 import os
-import re
 import shutil
 import subprocess
 import hashlib
@@ -14,106 +13,8 @@ import datetime
 import glob
 
 from .extract_summary_galfit import extract_summary_from_galfit
-
-
-def _parse_galfit_config(config_file: str) -> dict[str, Any]:
-    """Parse GALFIT configuration file to extract file paths and fitting region.
-
-    Returns dict with keys: input, output, sigma, mask, psf, constraint,
-    and fit_region (tuple of (xmin, xmax, ymin, ymax) in 1-indexed pixels, or None).
-    """
-    paths: dict[str, Any] = {
-        "input": "",
-        "output": "",
-        "sigma": "",
-        "mask": "",
-        "psf": "",
-        "constraint": "",
-        "fit_region": None,
-    }
-
-    config_file = os.path.abspath(config_file)
-    with open(config_file) as f:
-        content = f.read()
-
-    # Parse each parameter line
-    patterns = {
-        "input": r"^A\)\s*(.+?)\s*#",
-        "output": r"^B\)\s*(.+?)\s*#",
-        "sigma": r"^C\)\s*(.+?)\s*#",
-        "psf": r"^D\)\s*(.+?)\s*#",
-        "mask": r"^F\)\s*(.+?)\s*#",
-        "constraint": r"^G\)\s*(.+?)\s*#",
-    }
-
-    for key, pattern in patterns.items():
-        match = re.search(pattern, content, re.MULTILINE)
-        if match:
-            value = match.group(1).strip()
-            if value.lower() not in ("none", ""):
-                # Relative paths in the configuration file are all resolved relative to the configuration file itself.
-                value = value if os.path.isabs(value) else os.path.join(os.path.dirname(config_file), value)
-                paths[key] = value
-
-    # Parse fitting region H) xmin xmax ymin ymax (1-indexed)
-    match_h = re.search(r"^H\)\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*#", content, re.MULTILINE)
-    if match_h:
-        paths["fit_region"] = (
-            int(match_h.group(1)),  # xmin
-            int(match_h.group(2)),  # xmax
-            int(match_h.group(3)),  # ymin
-            int(match_h.group(4)),  # ymax
-        )
-
-    return paths
-
-
-def _normimg_galfit(image: np.ndarray, immin: float, immax: float,
-                    frac: float = 0.4) -> np.ndarray:
-    """Normalize image with arcsinh stretch (GalfitS style).
-
-    Applies arcsinh scaling for better dynamic range display. Handles both
-    positive and negative pixel values.
-
-    Args:
-        image: Input image array (sky-subtracted).
-        immin: Lower threshold for arcsinh stretch.
-        immax: Upper threshold for arcsinh stretch.
-        frac: Fraction parameter controlling stretch behavior near zero.
-
-    Returns:
-        Normalized image in range [-1, 1] suitable for display.
-    """
-    result = np.zeros_like(image, dtype=float)
-
-    # GalfitS normimg logic:
-    # For image > immin: arcsinh stretch from [immin, immax] to [frac, 1]
-    # For image <= immin: linear scaling to [-frac, frac]
-    # For image < -frac: arcsinh stretch (negative side)
-
-    # Above threshold: arcsinh stretch
-    mask_above = image > immin
-    if np.any(mask_above):
-        arcsinh_min = np.arcsinh(immin)
-        arcsinh_max = np.arcsinh(immax)
-        result[mask_above] = (1 - frac) * (np.arcsinh(image[mask_above]) - arcsinh_min) / \
-                             (arcsinh_max - arcsinh_min) + frac
-
-    # At or below threshold: linear scaling
-    mask_at_below = image <= immin
-    if np.any(mask_at_below):
-        result[mask_at_below] = image[mask_at_below] * frac / immin
-
-    # Negative values: mirror arcsinh stretch to [-1, -frac]
-    mask_neg = image < -frac
-    if np.any(mask_neg):
-        arcsinh_frac = np.arcsinh(frac)
-        # Note: GalfitS uses frac*max/min as upper bound for negative side
-        arcsinh_negmax = np.arcsinh(frac * immax / immin)
-        result[mask_neg] = -(1 - frac) * (np.arcsinh(-image[mask_neg]) - arcsinh_frac) / \
-                           (arcsinh_negmax - arcsinh_frac) - frac
-
-    return result
+from .parse_feedme import parse_feedme, parse_components
+from .render_original import render_asinh_panel
 
 
 def _crop_to_fit_region(full_data: np.ndarray, fit_region: tuple[int, int, int, int] | None,
@@ -147,19 +48,22 @@ def create_comparison_png(
     sigma_file: str | None = None,
     mask_file: str | None = None,
     fit_region: tuple[int, int, int, int] | None = None,
+    param_file: str | None = None,
 ) -> str | None:
     """Create a scientific comparison plot with original, model, and normalized residual.
 
-    Uses GalfitS-style rendering:
-    - Original/Model: arcsinh stretch with 'seismic' colormap
-    - Residual: normalized by sigma (significance map) with 'seismic' colormap, ±10σ range
-    - Mask overlaid as semi-transparent blue layer on all panels
+    Rendering style:
+    - Original/Model: asinh stretch with Greys_r colormap + isophote contours (shared with render_original)
+    - Model: also shows 2*Re component ellipses in cyan dashed lines
+    - Residual: normalized by sigma (significance map) with seismic colormap, ±10σ range
+    - Mask overlaid as semi-transparent layer on all panels
 
     Args:
         fits_file: Path to GALFIT output FITS file (contains original, model, residual)
         sigma_file: Path to sigma image for residual normalization
         mask_file: Path to mask image (0=good, non-zero=masked/bad)
         fit_region: (xmin, xmax, ymin, ymax) in 1-indexed pixels from feedme H) parameter.
+        param_file: Path to GALFIT parameter file (feedme or galfit.01) to extract components.
 
     Returns:
         Path to saved PNG file or None if failed.
@@ -196,94 +100,96 @@ def create_comparison_png(
             mask = np.array(mask, dtype=float)
             mask = np.where(mask > 0, 1, 0)
 
-        # Load sigma if provided
-        sigma = None
-        if sigma_file and os.path.exists(sigma_file):
-            sigma_full = fits.getdata(sigma_file)
-            if sigma_full.shape != original_data.shape:
-                sigma = _crop_to_fit_region(sigma_full, fit_region, original_data.shape)
-            else:
-                sigma = sigma_full
+        # Default: no mask (all pixels good)
+        if mask is None:
+            mask = np.zeros(original_data.shape, dtype=float)
 
-        # Calculate sky statistics for normalization (GalfitS style)
-        from astropy.stats import sigma_clipped_stats
-        _, sky_median, sky_std = sigma_clipped_stats(original_data, sigma=3.0, maxiters=5)
+        # Convert fit_region tuple to list for render_asinh_panel
+        region = list(fit_region) if fit_region is not None else None
 
-        # Compute extent for real pixel coordinates from fit_region
-        if fit_region is not None:
-            xmin, xmax, ymin, ymax = fit_region
-            plot_extent = [xmin - 0.5, xmax + 0.5, ymin - 0.5, ymax + 0.5]
-        else:
-            plot_extent = None
+        # Parse components for model panel contour display
+        components = None
+        if param_file and os.path.exists(param_file):
+            components = parse_components(param_file)
 
         # Create figure with custom layout
         fig = plt.figure(figsize=(15, 6))
         gs = GridSpec(1, 3, figure=fig, wspace=0.05)
-        fig.subplots_adjust(left=0.05, right=0.95, top=0.90)
+        fig.subplots_adjust(left=0.05, right=0.95, top=0.82)
 
-        # === Original Image (GalfitS style: seismic, arcsinh stretch) ===
+        # === Original Image (asinh stretch, Greys_r + isophotes) ===
         ax1 = fig.add_subplot(gs[0, 0])
-        # GalfitS uses: immin = 5*sky_std, immax = max(image), and subtracts sky
-        orig_data_sky_sub = original_data - sky_median
-        #orig_display = np.flipud(orig_data_sky_sub)
-        orig_display = orig_data_sky_sub
-        immin = 5 * sky_std
-        immax = np.nanmax(orig_data_sky_sub)
-        orig_norm = _normimg_galfit(orig_display, immin, immax, frac=0.4)
-        ax1.imshow(orig_norm, cmap='seismic', vmin=-1, vmax=1, origin='lower',
-                   extent=plot_extent, interpolation='nearest', aspect='auto')
-        ax1.set_title('Original Data', fontsize=14, fontweight='bold')
+        orig_info = render_asinh_panel(ax1, original_data, mask, region=region, show_isophotes=True)
+        title_orig = (
+            f"Original Data\n"
+            f"asinh: a={orig_info['asinh_a']:.4f}, vmin={orig_info['vmin_sigma']:.1f}$\\sigma$, vmax=99.5th pctl\n"
+            f"Isophotes: 5$\\sigma$ [lime], vmax [red]"
+        )
+        ax1.set_title(title_orig, fontsize=10, pad=10)
         ax1.set_xlabel('X (pixels)', fontsize=12)
         ax1.set_ylabel('Y (pixels)', fontsize=12)
 
-        # === Model Image (GalfitS style) ===
+        # === Model Image (same asinh stretch as original, no isophotes, no mask) ===
         ax2 = fig.add_subplot(gs[0, 1])
         if model_data is not None:
-            model_data_sky_sub = model_data - sky_median
-            #model_display = np.flipud(model_data_sky_sub)
-            model_display = model_data_sky_sub
-            model_norm = _normimg_galfit(model_display, immin, immax, frac=0.4)
-            ax2.imshow(model_norm, cmap='seismic', vmin=-1, vmax=1, origin='lower',
-                       extent=plot_extent, interpolation='nearest', aspect='auto')
+            render_asinh_panel(ax2, model_data, mask, region=region,
+                               show_isophotes=False, show_mask=False,
+                               norm_params=orig_info,
+                               components=components,
+                               fit_region=fit_region)
         else:
             ax2.text(0.5, 0.5, 'No Model', ha='center', va='center', transform=ax2.transAxes)
-        ax2.set_title('GALFIT Model', fontsize=14, fontweight='bold')
+        
+        title_model = (
+            f"GALFIT Model\n"
+            f"Same asinh stretch as original\n"
+            f"2*$R_e$ contours of component [cyan]"
+        )
+        ax2.set_title(title_model, fontsize=10, pad=10)
         ax2.set_xlabel('X (pixels)', fontsize=12)
         ax2.tick_params(labelleft=False)
 
-        # === Residual Image (GalfitS style: significance map, ±10σ range) ===
+        # === Residual Image (significance map, ±10σ range, seismic) ===
         ax3 = fig.add_subplot(gs[0, 2])
         im3 = None
         if residual_data is not None:
-            #resid_display = np.flipud(residual_data.copy())
             resid_display = residual_data.copy()
 
-            # Normalize by sigma to get significance map (GalfitS style)
-            if sigma is not None:
-                sigma_safe = np.where((sigma > 0) & (sigma < 1e6), sigma, 1)
-                resid_norm = resid_display / sigma_safe
+            # Normalize by background std from original image (significance map)
+            bg_std = orig_info.get("std", 1.0)
+            if bg_std > 0:
+                resid_norm = resid_display / bg_std
             else:
-                # Fallback: use RMS normalization
-                rms = np.std(resid_display)
-                resid_norm = resid_display / rms if rms > 0 else resid_display
+                resid_norm = resid_display
+            # Set masked pixels to 0 before normalization
+            if mask is not None:
+                resid_norm[mask > 0] = 0
+            # Compute extent for real pixel coordinates from fit_region
+            if fit_region is not None:
+                xmin, xmax, ymin, ymax = fit_region
+                plot_extent = [xmin - 0.5, xmax + 0.5, ymin - 0.5, ymax + 0.5]
+            else:
+                plot_extent = None
 
             im3 = ax3.imshow(resid_norm, cmap='seismic', vmin=-10, vmax=10,
                            origin='lower', extent=plot_extent, interpolation='nearest',
                            aspect='auto')
 
-            # Add statistics text (GalfitS style)
-            resid_valid = resid_norm[~np.isnan(resid_norm)]
-            if len(resid_valid) > 0:
-                rms_val = np.std(resid_valid)
-                max_val = np.max(np.abs(resid_valid))
-                stats_text = f'rms: {rms_val:.2f}\nmax: {max_val:.2f}'
-                ax3.text(0.03, 0.03, stats_text, transform=ax3.transAxes,
-                        va='bottom', ha='left', fontsize=11, color='blue',
-                        bbox=dict(boxstyle='round', facecolor='white', alpha=0.7))
+            # Overlay mask on residual (Opaque White)
+            if mask is not None:
+                mask_overlay = np.zeros((*mask.shape, 4))
+                mask_overlay[mask > 0] = [1, 1, 1, 0.7]
+                ax3.imshow(mask_overlay, origin="lower", extent=plot_extent, interpolation='nearest')
+
         else:
             ax3.text(0.5, 0.5, 'No Residual', ha='center', va='center', transform=ax3.transAxes)
 
-        ax3.set_title('Residual/σ', fontsize=14, fontweight='bold')
+        title_resid = (
+            f"Residual/$\\sigma$\n"
+            f"Normalized by bg $\\sigma$ of original image\n"
+            f"Range: $\\pm$10$\\sigma$, white=masked"
+        )
+        ax3.set_title(title_resid, fontsize=10, pad=10)
         ax3.set_xlabel('X (pixels)', fontsize=12)
         ax3.tick_params(labelleft=False)
 
@@ -296,36 +202,10 @@ def create_comparison_png(
             cbar.ax.tick_params(labelsize=11)
             cbar.set_label('Residual (σ)', fontsize=12)
 
-        # === Overlay mask on data and residual panels (not on model) ===
-        if mask is not None:
-            #mask_display = np.flipud(mask)
-            mask_display = mask
-            for ax in [ax1, ax3]:
-                ax.imshow(mask_display, cmap='Blues', origin='lower',
-                         extent=plot_extent, alpha=0.5 * mask_display,
-                         interpolation='nearest', aspect='auto')
-
-        # Add mask legend/explanation at top-left of figure
-        if mask is not None:
-            fig.text(0.01, 0.99, 'Blue overlay: masked pixels',
-                    ha='left', va='top', fontsize=11, color='blue',
-                    bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
-
-        # Add panel labels (GalfitS style)
-        ax1.text(3, 3, "data", size=16, color='blue', weight="light",
-                transform=ax1.transAxes, va='bottom', ha='left')
-        ax2.text(3, 3, "model", size=16, color='blue', weight="light",
-                transform=ax2.transAxes, va='bottom', ha='left')
-        if im3 is not None:
-            ny = orig_display.shape[0]
-            ax3.text(3, ny - 3, "residual/σ", size=16, color='blue',
-                    weight="light", transform=ax3.transAxes, va='top', ha='left')
-
-        # Save figure (avoid bbox_inches='tight' as it causes issues with divider.append_axes)
+        # Save figure
         fits_dir = os.path.dirname(fits_file)
         base_name = os.path.splitext(os.path.basename(fits_file))[0]
         png_filename = os.path.join(fits_dir, f"{base_name}_comparison.png")
-        # Calculate DPI to get ~1024px width (15 inches * dpi ≈ 1024)
         target_dpi = 1024 / 15
         plt.savefig(png_filename, dpi=target_dpi)
         plt.close(fig)
@@ -364,7 +244,7 @@ async def run_galfit(
     command = [galfit_bin] + options + [config_file]
 
     # Parse config file for additional paths
-    config_paths = _parse_galfit_config(config_file)
+    config_paths = parse_feedme(config_file)
 
     # Use config file directory as working directory so fit.log is created there
     working_dir = os.path.dirname(os.path.abspath(config_file))
@@ -415,11 +295,21 @@ async def run_galfit(
             "log": full_output,
         }
 
+    # Identify the latest galfit.[0-9]* file for parameter extraction
+    matched_galfit_files = glob.glob(os.path.join(working_dir, "galfit.[0-9]*"))
+    latest_galfit = "galfit.01"
+    param_file_for_plot = config_file # Fallback
+    if matched_galfit_files:
+        latest_galfit = max(matched_galfit_files, key=lambda f: int(f.rsplit(".", 1)[-1]))
+        param_file_for_plot = latest_galfit
+
     # Create comparison PNG with sigma and mask if available
     sigma_file = config_paths.get("sigma") or None
     mask_file = config_paths.get("mask") or None
     fit_region = config_paths.get("fit_region")
-    comparison_png_path = create_comparison_png(output_file, sigma_file, mask_file, fit_region)
+    # Use latest_galfit (fitted parameters) for component parameters in plot
+    comparison_png_path = create_comparison_png(output_file, sigma_file, mask_file, fit_region,
+                                                param_file=param_file_for_plot)
 
     # Extract summary information
     summary = extract_summary_from_galfit(output_file, config_file)
@@ -445,10 +335,7 @@ async def run_galfit(
         shutil.move(summary, ar_dir)
         summary = os.path.join(ar_dir, os.path.basename(summary))    
 
-    matched_galfit_files = glob.glob(os.path.join(working_dir, "galfit.[0-9]*"))
-    latest_galfit = "galfit.01"
     if matched_galfit_files:
-        latest_galfit = max(matched_galfit_files, key=lambda f: int(f.rsplit(".", 1)[-1]))
         shutil.copy(latest_galfit, ar_dir)
     shutil.copy(config_file, ar_dir)    
 

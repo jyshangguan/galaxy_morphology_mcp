@@ -21,6 +21,7 @@ from tools.analyze_image import galfit_analyze_by_vlm
 from tools.analyze_image import galfits_analyze_by_vlm
 from tools.residual_analysis import component_analysis
 from tools.view_original_image import view_original_image
+from tools.render_original import render_original
 from tools.pix2radec import pix2radec
 from tools.prompt import workflow_galfit, workflow_galfits
 from starlette.responses import Response, JSONResponse
@@ -56,6 +57,7 @@ def _register_tools_and_prompts():
 
     # Shared tools — always available
     app.add_tool(view_original_image)
+    app.add_tool(render_original)
     app.add_tool(component_analysis)
     # app.add_tool(pix2radec)
 

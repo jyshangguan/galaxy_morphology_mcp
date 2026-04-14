@@ -82,6 +82,7 @@ def component_analysis(
 
     if custom_instructions:
         analysis_prompt += f"\n\n--- Additional requirements ---\n{custom_instructions}"
+    analysis_prompt = f'残差图文件路径：{image_file}'+analysis_prompt
     additional_content = [{"type": "text", "text": analysis_prompt}]
 
     # Call VLM
