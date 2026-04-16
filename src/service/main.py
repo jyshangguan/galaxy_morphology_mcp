@@ -7,8 +7,8 @@ app = FastAPI(title="galfits fitting service", version="1.0")
 
 def validate_arguments(body: dict):
     fitting_mode = body.get("fitting_mode", "").lower()
-    if fitting_mode not in ["image fitting", "pure sed fitting", "image sed fitting"]:
-        return False, "fitting_mode is required and must be one of 'image fitting', 'pure sed fitting', or 'image sed fitting'"
+    if fitting_mode not in ["image fitting", "sed fitting", "image-sed fitting"]:
+        return False, "fitting_mode is required and must be one of 'image fitting', 'sed fitting', or 'image-sed fitting'"
 
     lyric_file = body.get("lyric_file", None)
     if lyric_file is None:
@@ -25,8 +25,11 @@ def validate_arguments(body: dict):
 
     args = body.get("args", [])
     # args is optional, but if provided, it must be a list of strings
-    if not isinstance(args, list):
-        return False, "args should be a list"
+    if not isinstance(args, (list, str)):
+        return False, "args should be a list or a string"
+    if isinstance(args, str):
+        args = [args]  # convert single string to list    
+        body["args"] = args  # update body with the converted list
     for arg in args:
         if not isinstance(arg, str):
             return False, "each argument in args should be a string"    

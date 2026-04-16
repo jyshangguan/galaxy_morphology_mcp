@@ -31,7 +31,7 @@ def do_fitting_task(task_id: str, data: str):
                     fm.upload_directory(os.path.join(fm.work_dir, "result"), remote_dir=output_path)
                 requests.post(callback_url, json={"task_id": task_id, "status": result["status"], "message": result.get("message", "")})
 
-            elif fitting_mode == "pure sed fitting":
+            elif fitting_mode == "sed fitting":
                 fm.download_file(workplace, os.path.join(fm.work_dir, "result"))
                 
                 result = PureSEDFitting(lyric_file=local_lyric_file, new_lyric_file=local_lyric_file, workplace=os.path.join(fm.work_dir, "result"), args=args)
@@ -39,7 +39,7 @@ def do_fitting_task(task_id: str, data: str):
                     fm.upload_file(local_lyric_file, output_path)
                 requests.post(callback_url, json={"task_id": task_id, "status": result["status"], "message": result.get("message", "")})
 
-            elif fitting_mode == "image sed fitting":
+            elif fitting_mode == "image-sed fitting":
                 result = ImageSEDFitting(lyric_file=local_lyric_file, workplace=os.path.join(fm.work_dir, "result"), args=args)
                 if result["status"] == "success":
                     fm.upload_directory(os.path.join(fm.work_dir, "result"), remote_dir=output_path)
