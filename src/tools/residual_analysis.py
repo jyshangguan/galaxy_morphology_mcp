@@ -124,7 +124,7 @@ def component_analysis(
     # Save analysis
     base_name = os.path.splitext(os.path.basename(image_file))[0]
     if session_id:
-        output_file = os.path.join(os.path.dirname(image_file), f"{base_name}_{session_id}_component_analysis.md")
+        output_file = os.path.join(os.path.dirname(image_file), f"{base_name}_component_analysis_{session_id}.md")
     else:
         output_file = os.path.join(os.path.dirname(image_file), f"{base_name}_component_analysis.md")
 
