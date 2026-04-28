@@ -1,13 +1,15 @@
 import os
+import re
 import shutil
 import subprocess
 import hashlib
+import tempfile
 from typing import Any, Annotated, List
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
-from matplotlib.gridspec import GridSpec
+from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
 from astropy.io import fits
 import datetime
 import glob
@@ -15,6 +17,7 @@ import glob
 from .extract_summary_galfit import extract_summary_from_galfit
 from .parse_feedme import parse_feedme, parse_components
 from .render_original import render_asinh_panel
+from .sb_profile import render_sb_profile
 
 
 def _crop_to_fit_region(full_data: np.ndarray, fit_region: tuple[int, int, int, int] | None,
@@ -43,12 +46,67 @@ def _crop_to_fit_region(full_data: np.ndarray, fit_region: tuple[int, int, int, 
     return full_data[dy:dy + target_shape[0], dx:dx + target_shape[1]]
 
 
+def _generate_subcomps(param_file: str, working_dir: str) -> tuple[list, list] | None:
+    """Generate individual component images via GALFIT subcomps mode (P=3).
+
+    Returns (comp_images, comp_types) where comp_types are raw GALFIT type
+    strings (e.g. "sersic", "expdisk"), or None on failure.
+    """
+    tmpdir = tempfile.mkdtemp(prefix="galfit_sub_", dir=working_dir)
+    try:
+        subcomps_feedme = os.path.join(tmpdir, "subcomps.feedme")
+        # GALFIT P=3 always writes "subcomps.fits" to CWD, ignoring B)
+        subcomps_path = os.path.join(working_dir, "subcomps.fits")
+
+        with open(param_file) as f:
+            lines = f.readlines()
+
+        with open(subcomps_feedme, 'w') as f:
+            for line in lines:
+                s = line.strip()
+                if re.match(r'^P\)', s):
+                    f.write("P) 3                   # subcomps mode\n")
+                else:
+                    f.write(line)
+
+        # Remove stale subcomps output if present
+        if os.path.exists(subcomps_path):
+            os.remove(subcomps_path)
+
+        galfit_bin = os.getenv("GALFIT_BIN", "galfit")
+        subprocess.run(
+            [galfit_bin, subcomps_feedme],
+            cwd=working_dir,
+            capture_output=True, text=True, timeout=300,
+        )
+
+        if not os.path.exists(subcomps_path):
+            return None
+
+        comp_images = []
+        comp_types = []
+        with fits.open(subcomps_path) as hdul:
+            for i in range(2, len(hdul)):
+                comp_images.append(hdul[i].data.astype(np.float64))
+                obj = hdul[i].header.get("OBJECT", f"Component {i-1}")
+                comp_types.append(obj.lower())
+
+        return (comp_images, comp_types) if comp_images else None
+
+    except Exception:
+        return None
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
 def create_comparison_png(
     fits_file: str,
     sigma_file: str | None = None,
     mask_file: str | None = None,
     fit_region: tuple[int, int, int, int] | None = None,
     param_file: str | None = None,
+    comp_images: list | None = None,
+    comp_types: list | None = None,
 ) -> str | None:
     """Create a scientific comparison plot with original, model, and normalized residual.
 
@@ -112,9 +170,9 @@ def create_comparison_png(
         if param_file and os.path.exists(param_file):
             components = parse_components(param_file)
 
-        # Create figure with custom layout
-        fig = plt.figure(figsize=(15, 6))
-        gs = GridSpec(1, 3, figure=fig, wspace=0.05)
+        # Create figure with 1×5 layout: Original | Model | Residual | (Gap) | SB Profile
+        fig = plt.figure(figsize=(21, 6))
+        gs = GridSpec(1, 5, figure=fig, wspace=0.05, width_ratios=[1, 1, 1, 0.3, 1])
         fig.subplots_adjust(left=0.05, right=0.95, top=0.82)
 
         # === Original Image (asinh stretch, Greys_r + isophotes) ===
@@ -199,8 +257,17 @@ def create_comparison_png(
             divider = make_axes_locatable(ax3)
             cax = divider.append_axes("right", size="5%", pad=0.05)
             cbar = plt.colorbar(im3, cax=cax, orientation='vertical')
-            cbar.ax.tick_params(labelsize=11)
-            cbar.set_label('Residual (σ)', fontsize=12)
+            cbar.ax.tick_params(labelsize=9)
+            cbar.set_label('Residual (σ)', fontsize=9)
+
+        # === 1D Surface Brightness Profile (5th column) ===
+        gs_sb = GridSpecFromSubplotSpec(2, 1, subplot_spec=gs[0, 4],
+                                         height_ratios=[3, 1], hspace=0.05)
+        ax_sb = fig.add_subplot(gs_sb[0])
+        ax_sb_resid = fig.add_subplot(gs_sb[1], sharex=ax_sb)
+        render_sb_profile(ax_sb, ax_sb_resid, original_data, model_data,
+                          param_file, components, fit_region,
+                          comp_images=comp_images, comp_types=comp_types)
 
         # Save figure
         fits_dir = os.path.dirname(fits_file)
@@ -224,7 +291,7 @@ async def run_galfit(
     **Execution Process:**
     1. Parses the GALFIT feedme configuration file to extract file paths and fitting region
     2. Executes GALFIT as a subprocess with 5-minute timeout protection
-    3. Generates a professional 3-panel comparison image (Original | Model | Residual)
+    3. Generates a 1×4 comparison image: Original | Model | Residual | 1D SB Profile
     4. Extracts fitting parameters and statistics to JSON summary
     5. Archives all output files to a timestamped directory with config backup
 
@@ -307,9 +374,16 @@ async def run_galfit(
     sigma_file = config_paths.get("sigma") or None
     mask_file = config_paths.get("mask") or None
     fit_region = config_paths.get("fit_region")
+
+    # Generate subcomps for SB profile component curves
+    comp_data = _generate_subcomps(latest_galfit, working_dir) if matched_galfit_files else None
+    comp_images = comp_data[0] if comp_data else None
+    comp_types = comp_data[1] if comp_data else None
+
     # Use latest_galfit (fitted parameters) for component parameters in plot
     comparison_png_path = create_comparison_png(output_file, sigma_file, mask_file, fit_region,
-                                                param_file=param_file_for_plot)
+                                                param_file=param_file_for_plot,
+                                                comp_images=comp_images, comp_types=comp_types)
 
     # Extract summary information
     summary = extract_summary_from_galfit(output_file, config_file)
@@ -337,14 +411,18 @@ async def run_galfit(
 
     if matched_galfit_files:
         shutil.copy(latest_galfit, ar_dir)
-    shutil.copy(config_file, ar_dir)    
+    shutil.copy(config_file, ar_dir)
+    # Archive subcomps FITS if it was generated
+    subcomps_file = os.path.join(working_dir, "subcomps.fits")
+    if os.path.exists(subcomps_file):
+        shutil.move(subcomps_file, ar_dir)
 
     message = (
         "GALFIT completed successfully.\n"
         "- input_param_file: the input feedme configuration file used for this run.\n"
         "- output_param_file: the latest GALFIT output parameter file.\n"
         "- optimized_fits_file: FITS file with original, model, and residual image extensions.\n"
-        "- image_file: 1-row 3-column PNG showing original | model | residual (blue overlay = masked pixels).\n"
+        "- image_file: 1×4 PNG (original | model | residual | 1D SB profile with residual panel).\n"
         "- summary_file: Markdown file containing fitted parameters, chi-squared statistics, and observation metadata.\n"
         "- console_log_file: GALFIT console log from this run.\n"        
     )
