@@ -152,3 +152,65 @@ async def run_galfits(
         "params_files": params_files,
     }
 
+async def run_galfits_image_fitting(
+    config_file: Annotated[str, "the path to the GalfitS (.lyric) configuration file"],
+    timeout_sec: Annotated[int, "timeout in seconds"] = 3600,
+    extra_args: Annotated[list[str] | None, "extra GalfitS CLI args (e.g. ['--fit_method','optimizer','--num_steps','200'])"] = None,
+) -> dict[str, Any]:
+    """Execute GalfitS (multi-band) with the given config file for image fitting.
+
+    It runs GalfitS as a subprocess and returns discovered artifacts (summary + PNGs) and logs.
+    """
+    return await run_galfits(config_file=config_file, timeout_sec=timeout_sec, extra_args=extra_args)
+
+async def run_galfits_sed_fitting(
+    config_file: Annotated[str, "the path to the GalfitS (.lyric) configuration file"],
+    image_fitting_workplace: Annotated[str, "the workplace directory containing results from image fitting, required for sed fitting"],
+    timeout_sec: Annotated[int, "timeout in seconds"] = 3600,
+    extra_args: Annotated[list[str] | None, "extra GalfitS CLI args (e.g. ['--fit_method','optimizer','--num_steps','200'])"] = None,
+) -> dict[str, Any]:
+    """
+    Execute GalfitS (multi-band) with the given config file for sed fitting.
+    It runs GalfitS as a subprocess and returns a new lyric file that will be used for combined image and sed fitting.
+    The image_fitting_workplace is used to provide the necessary image fitting results for the sed fitting step.
+    """
+    from .galfits_fitting import PureSEDFitting
+    #from src.tools.galfits_fitting import PureSEDFitting
+
+    config_dir = os.path.dirname(os.path.abspath(config_file))
+    config_basename, config_ext = os.path.splitext(os.path.basename(config_file))
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    os.makedirs(os.path.join(config_dir, "output"), exist_ok=True)
+    workplace_dir = os.path.join(config_dir, "output", f"{timestamp}_{config_basename}")
+    os.makedirs(workplace_dir, exist_ok=True)
+    shutil.copy(config_file, workplace_dir)
+    new_lyric_file = os.path.join(workplace_dir, f"{config_basename}_for_image_sed_fitting" + (f".{config_ext}" if config_ext else ""))
+
+    res = PureSEDFitting(lyric_file=config_file, workplace=image_fitting_workplace, new_lyric_file=new_lyric_file, mock_root=workplace_dir, args=extra_args)
+    if res.get("status") != "success":
+        return {
+            "status": "failure",
+            "message": f"SED fitting in the workplace {workplace_dir} failed: {res.get('message', 'Unknown error')}"
+        }
+    return {
+        "status": "success",
+        "message": f"SED fitting completed successfully. New lyric file for image-sed fitting generated: {new_lyric_file}"
+    }    
+
+async def run_galfits_image_sed_fitting(
+    config_file: Annotated[str, "the path to the GalfitS (.lyric) configuration file"],
+    timeout_sec: Annotated[int, "timeout in seconds"] = 3600,
+    extra_args: Annotated[list[str] | None, "extra GalfitS CLI args (e.g. ['--fit_method','optimizer','--num_steps','200'])"] = None,
+) -> dict[str, Any]:
+    """Execute GalfitS (multi-band) with the given config file for combined image and sed fitting.
+
+    It runs GalfitS as a subprocess and returns discovered artifacts (summary + PNGs) and logs.
+    """
+    return await run_galfits(config_file=config_file, timeout_sec=timeout_sec, extra_args=extra_args)
+
+if __name__ == '__main__':
+    config_file = "/home/jiangbo/galaxy_morphology_mcp/GALFITS_examples/latest/configs/obj692"    
+    image_fitting_workplace = "/home/jiangbo/GALFITS_examples/latest/results/obj692"
+    import asyncio
+    res = asyncio.run(run_galfits_sed_fitting(config_file=config_file, image_fitting_workplace=image_fitting_workplace, extra_args=["--fit_method", "ES"]))
+    print(res)

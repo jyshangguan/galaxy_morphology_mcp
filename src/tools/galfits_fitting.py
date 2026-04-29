@@ -44,9 +44,12 @@ def load_gs_model(config_lyric, workplace, prior_path = None,):
 
         ## fill value
         for loopx in range(len(smfile)):
-
+            # NOTE: skip nan values
+            if np.isnan(smfile["best_value"][loopx]):
+                continue
             Myfitter.lmParameters[smfile['pname'][loopx]].value = smfile["best_value"][loopx]
 
+            # TODO: Can it be moved outside the loop to speed up ?
             Myfitter.loose_fix_pars()
             Myfitter.cal_model_image()
     
@@ -554,6 +557,7 @@ def PureSEDFitting(lyric_file, workplace, new_lyric_file, mock_root=None, args=[
     return {"status": "success", "message": "pure sed fitting success"}
 
 if __name__ == '__main__':
+    print(f'CUDA_VISIBLE_DEVICES: {os.environ.get("CUDA_VISIBLE_DEVICES") or "None"}')
     lyric_file = "/home/jiangbo/galaxy_morphology_mcp/GALFITS_examples/latest/configs/obj692"
     new_lyric_file = "/tmp/updated.lyric"
     workplace = "/home/jiangbo/galaxy_morphology_mcp/GALFITS_examples/latest/results/obj692"

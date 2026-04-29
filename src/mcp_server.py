@@ -17,7 +17,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from tools.modify_feedme import add_components, delete_components
 from tools.modify_lyric import modify_lyric
 from tools.run_galfit import run_galfit
-from tools.run_galfits import run_galfits
+from tools.run_galfits import run_galfits, run_galfits_image_fitting, run_galfits_sed_fitting, run_galfits_image_sed_fitting
 from tools.analyze_image import galfit_analyze_by_vlm
 from tools.analyze_image import galfits_analyze_by_vlm
 from tools.residual_analysis import component_analysis
@@ -51,8 +51,10 @@ def _register_tools_and_prompts():
         logger.info("Registered GALFIT tools (GALFIT_BIN is set)")
 
     if has_galfits:
-        app.add_tool(run_galfits)
-        app.add_tool(modify_lyric)
+        # app.add_tool(run_galfits)
+        app.add_tool(run_galfits_image_fitting)
+        app.add_tool(run_galfits_sed_fitting)
+        app.add_tool(run_galfits_image_sed_fitting)
         app.add_tool(galfits_analyze_by_vlm)
         app.add_prompt(workflow_galfits)
         logger.info("Registered GalfitS tools (GALFITS_BIN is set)")

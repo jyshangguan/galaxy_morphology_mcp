@@ -1,6 +1,7 @@
 import os
 import re
 
+import shutil
 from typing import Annotated
 
 from src.tools.analyze_image import create_vlm_client
@@ -256,6 +257,33 @@ def modify_lyric(
 
     return { "status": "failure", "error": message }       
 
+def check_lyric_file(lyric_file: str) -> dict:
+    """
+    It checks if the lyric file is valid by trying to parse it. If the file is valid, it returns {"status": "success"}. If the file is invalid, it returns {"status": "failure", "error": error_message}.
+
+    Args:
+        lyric_file: The file name of the lyric file to be checked.
+
+    Returns:
+        dict: A dictionary indicating success or failure, and error message if failure.
+    """
+    class DummyWorkplace:
+        def __enter__(self):
+            import tempfile
+            self.dummy_dir = tempfile.mkdtemp(prefix="check_lyric_")
+            return self
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            if hasattr(self, 'dummy_dir') and os.path.exists(self.dummy_dir):
+                shutil.rmtree(self.dummy_dir)
+
+    with DummyWorkplace() as workplace:
+        try:
+            from galfits.gsutils import read_config_file
+            _ = read_config_file(lyric_file, workplace.dummy_dir)
+            return {"status": "success", "message": f"{lyric_file} is a valid lyric file."}
+        except Exception as e:
+            return {"status": "failure", "message": f"{lyric_file} is an invalid lyric file. Error: {str(e)}"}
+        
 
 def TEST_add_AGN():
     content = modify_lyric(
