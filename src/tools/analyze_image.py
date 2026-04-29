@@ -1,12 +1,21 @@
 
 import os
 import base64
+import re
 from typing import Annotated, Optional, Any
 import dotenv
-from . import prompt
+
+# 处理相对导入和绝对导入
+try:
+    from . import prompt
+except ImportError:
+    import sys
+    sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+    import prompt
+
 try:
     from ..llms import LLMBase, create_llm_client
-except:
+except ImportError:
     import sys
     sys.path.append(os.path.abspath(os.path.dirname(__file__)))
     from llms import LLMBase, create_llm_client
@@ -14,6 +23,116 @@ except:
 
 # 加载环境变量
 dotenv.load_dotenv()
+
+
+def _backfill_fitting_log(image_file: str, analysis: str, config_file: str) -> None:
+    """Backfill the latest pending round in fitting_log.md with VLM analysis results.
+
+    Best-effort: silently skips if fitting_log.md doesn't exist or has no pending round.
+    """
+    # Galaxy directory = look up from image path (output/.../...) to config directory
+    image_dir = os.path.dirname(os.path.abspath(image_file))
+    # Walk up to find fitting_log.md
+    search_dir = image_dir
+    log_path = None
+    for _ in range(5):
+        candidate = os.path.join(search_dir, "fitting_log.md")
+        if os.path.exists(candidate):
+            log_path = candidate
+            break
+        search_dir = os.path.dirname(search_dir)
+
+    if not log_path:
+        return
+
+    with open(log_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # Only backfill if there's a pending round
+    if "*(pending)*" not in content:
+        return
+
+    # Extract key sections from VLM analysis
+    judgement = "N/A"
+    avg_score = None
+    problems = []
+    next_step = "N/A"
+    reasons = []
+
+    lines = analysis.split("\n")
+    current_section = None
+    for line in lines:
+        line_stripped = line.strip()
+
+        if "Overall Score" in line_stripped or "Average Score" in line_stripped or "average score" in line_stripped.lower():
+            # Extract numeric score (e.g. "63.9/100" or "54.0/100")
+            score_match = re.search(r'(\d+\.?\d*)\s*/\s*100', line_stripped)
+            if score_match:
+                avg_score = float(score_match.group(1))
+            # Extract tier info
+            for tier in ["Excellent", "Good", "Fair", "Poor", "Failed"]:
+                if tier.lower() in line_stripped.lower():
+                    judgement = f"Tier: {tier}"
+                    break
+
+        if "Overall Quality Tier" in line_stripped:
+            for tier in ["Tier 1", "Tier 2", "Tier 3", "Tier 4", "Tier 5"]:
+                if tier in line_stripped:
+                    judgement = f"{tier}"
+                    break
+
+        if "Primary Issue" in line_stripped or "Primary issue" in line_stripped:
+            problems.append(line_stripped)
+        elif "Secondary Issue" in line_stripped or "Secondary issue" in line_stripped:
+            problems.append(line_stripped)
+
+        if "Recommended Action" in line_stripped or "**7. Recommended" in line_stripped:
+            current_section = "action"
+        elif "**8. Next Steps" in line_stripped:
+            current_section = "next"
+        elif "Key Conclusion" in line_stripped or "**6." in line_stripped:
+            current_section = "conclusion"
+        elif "Reasoning Process" in line_stripped or "**3." in line_stripped:
+            current_section = "reasoning"
+
+        if current_section == "action" and line_stripped.startswith("-"):
+            next_step = line_stripped.lstrip("- ")
+            current_section = None
+        elif current_section == "conclusion" and line_stripped.startswith("-"):
+            reasons.append(line_stripped.lstrip("- "))
+
+    # Build replacement text
+    score_str = f" (avg score {avg_score:.1f}/100)" if avg_score is not None else ""
+    judgement_text = f"- Overall Judgement: {judgement}{score_str}\n"
+    problems_text = "- Fitting problems:\n"
+    for p in problems:
+        problems_text += f"  {p}\n"
+    next_step_text = f"- Next-Step Decision: {next_step}\n"
+    reasons_text = "- Reasons:\n"
+    for r in reasons[:3]:
+        reasons_text += f"  - {r}\n"
+
+    # Replace the pending block in the last round
+    old_pending = """- Overall Judgement: *(pending)*
+
+- Fitting problems:
+  - *(pending)*
+
+- Next-Step Decision: *(pending)*
+
+- Reasons: *(pending)*"""
+
+    new_filled = f"""{judgement_text}
+{problems_text}
+{next_step_text}
+{reasons_text}"""
+
+    # Only replace the LAST occurrence
+    last_idx = content.rfind(old_pending)
+    if last_idx >= 0:
+        content = content[:last_idx] + new_filled + content[last_idx + len(old_pending):]
+        with open(log_path, "w", encoding="utf-8") as f:
+            f.write(content)
 
 
 # 多模态模型对galfits 或 galfit 的优化结果进行分析
@@ -156,6 +275,8 @@ def galfit_analyze_by_vlm(
     image_file: Annotated[str, "Path to the combined image file [png file] containing three stamps displayed horizontally: original, model, residual"],
     summary_file: Annotated[str, "Path to the optimization summary file containing detailed fitting information"],
     custom_instructions: Annotated[str, "Optional custom instructions to guide the VLM analysis"] = "",
+    llm_type: Annotated[str, "LLM provider: 'openai' or 'glm'"] = "openai",
+    model: Annotated[str | None, "Model name, e.g. 'gpt-4o', 'glm-4.6v'. None uses provider default"] = None,
 ) -> dict[str, Any]:
     """
     Analyze the optimization results from GALFIT using a multimodal model.
@@ -172,7 +293,8 @@ def galfit_analyze_by_vlm(
             - analysis_file (str, optional): Path to the saved analysis markdown file (only on success)
     """
     # Create LLM client
-    client, error = create_vlm_client()
+    config = {"model": model} if model else None
+    client, error = create_vlm_client(llm_type=llm_type, config=config)
     if error:
         return {
             "status": "failure",
@@ -229,7 +351,8 @@ def galfit_analyze_by_vlm(
         client=client,
         base64_image=base64_image,
         additional_content=additional_content,
-        system_message=system_message
+        system_message=system_message,
+        model=model,
     )
 
     if error:
@@ -250,13 +373,19 @@ def galfit_analyze_by_vlm(
         print(f"Warning: Failed to save analysis to file: {e}")
         output_file = None
 
+    # Backfill fitting_log.md with VLM analysis
+    try:
+        _backfill_fitting_log(image_file, analysis, summary_file)
+    except Exception:
+        pass
+
     # Return successful result
     return {
         "status": "success",
         "analysis": analysis,
         "analysis_file": output_file
     }
-    
+
 
 
 # GalfitS 专用分析接口 - 多波段拟合
@@ -282,6 +411,8 @@ def galfits_analyze_by_vlm(
                     "### Image Residuals\\n- Circular positive residual in center\\n"
                     "### Summary Statistics\\n- No parameters hitting limits\\n- Chi-sq balanced\\n'"],
     sed_file: Annotated[Optional[str], "Path to the SED model file generated by GalfitS (optional)"] = None,
+    llm_type: Annotated[str, "LLM provider: 'openai' or 'glm'"] = "openai",
+    model: Annotated[str | None, "Model name, e.g. 'gpt-4o', 'glm-4.6v'. None uses provider default"] = None,
 ) -> dict[str, Any]:
     """
     Analyze the multi-band optimization results from GalfitS using a multimodal model.
@@ -364,7 +495,8 @@ def galfits_analyze_by_vlm(
         For single-band GALFIT results without SED information, use `galfit_analyze_by_vlm` instead.
     """
     # Create LLM client
-    client, error = create_vlm_client()
+    config = {"model": model} if model else None
+    client, error = create_vlm_client(llm_type=llm_type, config=config)
     if error:
         return {
             "status": "failure",
@@ -457,6 +589,7 @@ def galfits_analyze_by_vlm(
         base64_image=base64_image,
         additional_content=additional_content,
         system_message=system_message,
+        model=model,
         additional_images=additional_images
     )
 
@@ -480,6 +613,12 @@ def galfits_analyze_by_vlm(
     except Exception as e:
         print(f"Warning: Failed to save analysis to file: {e}")
         output_file = None
+
+    # Backfill fitting_log.md with VLM analysis
+    try:
+        _backfill_fitting_log(image_file, analysis, config_file)
+    except Exception:
+        pass
 
     # Return successful result
     return {

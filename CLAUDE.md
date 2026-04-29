@@ -19,6 +19,115 @@
 
 ---
 
+## Image Fitting Strategy (Phase 1)
+
+### Principle
+- Start from the simplest model (single Sersic), add components incrementally.
+- Image residuals are the PRIMARY decision driver.
+- Apply Occam's Razor: use BIC to validate every component addition.
+- Accept features that cannot be meaningfully fitted (spiral arms, small clumps).
+
+### Initial Setup
+Start with a **single Sersic component** (disk). Typical initial parameters:
+
+| Parameter | Initial | Bounds |
+|-----------|---------|--------|
+| Center (x,y) | ~0 (relative) | ±0.3 |
+| Re | 0.23-0.33 | 0.01 to 0.75-1.00 |
+| n | 2.5 | 0.2 to 8 |
+| PA | from image/catalog | -180 to +180 |
+| q | from image/catalog | 0 to 1 |
+
+### Residual → Decision Mapping
+
+| Residual Pattern | Action | Parameter Rules |
+|------------------|--------|-----------------|
+| Large-scale symmetric excess (center + radial alternation) | Add **bulge** | bulge: n=4, Re=50-75% of disk; disk n→1 |
+| Linear/X-shaped bright center | Add **bar** | bar: n=0.5 (fixed, vary=0), q≈0.3; PA from prev fit; disk PA→0, q↑ |
+| Compact central positive residual (PSF-like) | Add **PSF/AGN** | Use PSF model when Re<1 pixel |
+| Off-center compact bright spot | Add **companion** Sersic | Position from residual; wide ranges |
+| Outer closed bright ring | Add **ring** | Gaussian ring or truncated Sersic |
+| Asymmetric/tidal/merger features | Add **Fourier mode** | 1st order Fourier; ignore what can't be fitted |
+| Large-scale systematic offset or gradient | **STOP fitting, report issue** | Likely: bad initial guess / sky background / PSF mismatch |
+| Spiral arms ("positive-negative alternating spiral pattern") | **ACCEPT**, do not add components | Impact on mass is negligible |
+| Small clumps | **ACCEPT**, do not add components | |
+| Unmasked foreground/background source | **Update mask**; if impossible, STOP and report | |
+
+### Physical Meaning Check (after every round)
+
+| Issue | Condition | Action |
+|-------|-----------|--------|
+| Bar vs edge-on disk | n<1 AND q<0.5 | If another larger disk exists → set as bar (n=0.5); if only component → keep |
+| Point source in Sersic | Re << 1 pixel | Replace with PSF model |
+| Bulge+Disk center offset | Distance between centers > disk Re | Add companion + constrain centers |
+| Bulge/Disk label swap | Bulge Re > Disk Re | Swap component labels |
+| 3-component label order | Not re_disk > re_bar > re_bulge | Reorder by Re size |
+
+### Occam's Razor (after every component addition)
+
+**BIC Decision Standard:**
+
+| ΔBIC = BIC_simple - BIC_complex | Decision |
+|----------------------------------|----------|
+| < 0 | Reject complex model (overfitting) |
+| 2-6 | Keep simple model (weak evidence) |
+| > 6 | Accept complex model |
+
+**Deletion Priority (when simplifying):**
+1. Remove "patch" components covering background/PSF issues
+2. Replace Re<1px "fake Sersic" with PSF model
+3. Merge highly degenerate redundant components
+4. Remove components contributing <1% of total flux
+
+### Component Parameter Inheritance
+
+When adding a new component:
+1. Copy ALL spatial parameters from the existing primary component as initial values
+2. Only modify the parameters specific to the new component type (see table above)
+3. Use `--readsummary <prev.gssummary>` to carry forward all fitted parameters
+
+### Auto-Iteration & Stopping Criteria
+
+**Auto-Iteration Rule:**
+After each round, evaluate the average fitting score:
+- **Average score < 60 (Tier 3 Fair or below)**: Automatically proceed to next round WITHOUT asking user. Identify residual pattern, modify config, and run next iteration.
+- **Average score ≥ 60 (Tier 2 Good or above)**: STOP and report results to user. Let user decide whether to continue optimizing or proceed to next phase.
+
+**"Good Enough" Stopping Criteria (to report to user):**
+- Residuals appear noise-like ("TV static") with no systematic structure
+- Remaining features are explicitly accepted (spiral arms, clumps, tidal tails after Fourier)
+- BIC has improved (ΔBIC > 2) and parameters are physical
+- No parameters hitting boundaries
+- OR: max 5 rounds reached (report current best result)
+
+### Config File Isolation
+
+**NEVER modify the original .lyric file.** For each iteration round:
+1. Write the new config file in the galaxy's main directory (next to the original .lyric), named `{basename}_iter{n}.lyric`
+2. `run_galfits` will automatically create the output directory (`output/{timestamp}_{basename}_iter{n}/`) and copy the config there
+3. Use `--readsummary` to inherit parameters from the previous round
+4. **Do NOT manually create any directories** — `run_galfits` handles all output directory creation
+
+**Directory structure example:**
+```
+obj40/
+├── obj40_s1.lyric                              # Original config (NEVER modify)
+├── obj40_s1_iter2.lyric                        # Round 2 config (write here)
+├── obj40_s1_iter3.lyric                        # Round 3 config (write here)
+├── output/                                     # Auto-managed by run_galfits
+│   ├── 20260423_142428_obj40_s1/               # Round 1 output (auto-created)
+│   │   ├── obj40_s1.gssummary                  # Round 1 results
+│   │   └── obj40_s1.lyric                      # Config copy
+│   ├── 20260423_143334_obj40_s1_iter2/         # Round 2 output (auto-created)
+│   │   ├── obj40_s1_iter2.gssummary            # Round 2 results
+│   │   └── obj40_s1_iter2.lyric                # Config copy
+│   └── 20260423_144053_obj40_s1_iter3/         # Round 3 output (auto-created)
+│       ├── obj40_s1_iter3.gssummary            # Round 3 results
+│       └── obj40_s1_iter3.lyric                # Config copy
+```
+
+---
+
 # Diagnosis Logic & Rule Base (Structured Thinking)
 
 Analyze the user's input across THREE dimensions. If multiple issues exist, prioritize "Image Analysis" FIRST.
@@ -160,7 +269,9 @@ Claude Code uses the SKILL to perform these actions autonomously:
 │     ├── examples/ - Similar scenario templates                      │
 │     └── running-galfits.md - CLI/MCP execution                     │
 │                                                                     │
-│  3. EDIT (Action - Modify .lyric file)                             │
+│  3. EDIT (Action - Write NEW .lyric in galaxy main dir)            │
+│     ├── NEVER modify original .lyric file                          │
+│     ├── Write {basename}_iter{n}.lyric in galaxy main dir          │
 │     ├── Add/modify Profile components (Pa1-Pa32)                   │
 │     ├── Add/modify Nuclei/AGN components (Na1-Na27)                │
 │     ├── Update Galaxy configuration (Ga1-Ga7)                      │
@@ -179,9 +290,9 @@ Claude Code uses the SKILL to perform these actions autonomously:
 │     └── Identify issues (Case A-E, parameter limits)               │
 │                                                                     │
 │  6. ITERATE (Loop back to step 2 if needed)                         │
-│     ├── Adjust config based on analysis                            │
-│     ├── Re-run with modified parameters                            │
-│     └── Continue until fit quality is acceptable                   │
+│     ├── Auto-iterate if avg score < 60 (no user confirmation)     │
+│     ├── Stop and report if avg score ≥ 60                          │
+│     └── Max 5 rounds, then report best result                     │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -192,7 +303,8 @@ When editing .lyric files, Claude Code MUST:
 
 1. **Read current config first** - Never assume contents
 2. **Reference SKILL** for correct parameter format
-3. **Use Edit tool** to make specific changes
+3. **NEVER modify the original .lyric file** - write new config in the galaxy's main directory with `_iter{n}` suffix
+4. **Use Write tool** to create new config files (not Edit on originals)
 
 **Example: Adding a bar component**
 ```text
@@ -291,6 +403,15 @@ analysis = mcp__galmcp__galfits_analyze_by_vlm(
 
 ## Available MCP Tools
 
+### Important GalfitS CLI Parameters
+
+| Parameter | Purpose | When to Use |
+|-----------|---------|-------------|
+| `--fit_method ES` | Evolution Strategy optimizer | All image-fitting rounds (REQUIRED) |
+| `--readsummary <.gssummary>` | Carry forward best-fit params from previous round | Every round after Round 1 |
+| `--prior <.prior>` | Apply mass/size constraints | When prior file is available in galaxy directory |
+| `--saveimgs` | Save diagnostic images | Always |
+
 ### mcp__galmcp__run_galfits
 Execute GalfitS multi-band fitting.
 
@@ -301,6 +422,9 @@ Execute GalfitS multi-band fitting.
 **Parameters:**
 - `config_file`: Path to .lyric config file
 - `timeout_sec`: Optional (default: 3600)
+- `read_summary`: Path to previous .gssummary to carry forward parameters
+- `prior_file`: Path to .prior file for mass/size constraints
+- `extra_args`: Additional CLI args (e.g. `["--fit_method", "ES"]`)
 
 ### mcp__galmcp__galfits_analyze_by_vlm
 Analyze results using multimodal AI.
@@ -369,8 +493,8 @@ Claude Code autonomously implements the complete workflow:
                  │
                  ▼
 ┌────────────────────────────────────────────────────────────────────┐
-│ 3. EDIT CONFIG (Action)                                               │
-│ Edit tool: config.lyric                                               │
+│ 3. EDIT CONFIG (Action - Write NEW .lyric in galaxy main dir)        │
+│ Write tool: galaxy_dir/obj{id}_s1_iter{n}.lyric                      │
 │ ├── Add missing components (Profile, Nuclei)                         │
 │ ├── Fix parameter bounds                                            │
 │ ├── Enable/disable SED fitting                                      │
@@ -402,12 +526,12 @@ Claude Code autonomously implements the complete workflow:
           │ Quality OK?  │
           └──────┬───────┘
                  │
-         No      │      Yes
+         No      │      Yes (avg ≥ 60)
          ┌────────┴────────┐
          ▼                 ▼
     ┌─────────┐      ┌─────────────┐
     │ ITERATE │      │ COMPLETE    │
-    │         │      │ Report      │
+    │ (auto)  │      │ Report      │
     └────┬────┘      └─────────────┘
          │
          └──────► Back to step 2

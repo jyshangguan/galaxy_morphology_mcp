@@ -99,7 +99,7 @@ workflow_galfit = _make_templated_prompt(
     params={"argument": ""},
 )
 
-workflow_galfits = _make_prompt(
+workflow_galfits = _make_templated_prompt(
     name="workflow_galfits",
     title="GalfitS Workflow",
     description=(
@@ -107,4 +107,5 @@ workflow_galfits = _make_prompt(
         "three-phase diagnosis logic and SED modelling. `workflow_galfits [lyric_file]`"
     ),
     md_file="workflow_galfits.md",
+    params={"argument": ""},
 )
