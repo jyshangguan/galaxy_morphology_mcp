@@ -27,12 +27,15 @@ def _write_fitting_log(
 
     Returns the path to the log file.
     """
-    # Galaxy root: if config is inside output/, walk up past it
-    config_dir = os.path.dirname(os.path.abspath(config_file))
-    parts = config_dir.split(os.sep)
-    if "output" in parts:
-        config_dir = os.sep.join(parts[:parts.index("output")])
-    log_path = os.path.join(config_dir, "fitting_log.md")
+    # Galaxy root: derive from workplace_dir (output/timestamp_basename)
+    # This works regardless of where the config file is located (e.g. /tmp/)
+    workplace_parent = os.path.dirname(os.path.abspath(workplace_dir))
+    if os.path.basename(workplace_parent) == "output":
+        galaxy_dir = os.path.dirname(workplace_parent)
+    else:
+        # Fallback: try config file location
+        galaxy_dir = os.path.dirname(os.path.abspath(config_file))
+    log_path = os.path.join(galaxy_dir, "fitting_log.md")
 
     # Count existing rounds to determine round number
     round_num = 1

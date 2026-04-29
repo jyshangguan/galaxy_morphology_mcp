@@ -96,8 +96,8 @@ After each round, evaluate the average fitting score:
 ### Config File Isolation
 
 **NEVER modify the original .lyric file.** For each iteration round:
-1. Write the new config file in the galaxy's main directory (next to the original .lyric), named `{basename}_iter{n}.lyric`
-2. `run_galfits` will automatically create the output directory (`output/{timestamp}_{basename}_iter{n}/`) and copy the config there
+1. Write the new config file to `/tmp/{basename}_iter{n}.lyric` (temporary staging)
+2. Pass the `/tmp/` path to `run_galfits`, which will automatically create the output directory and copy the config there
 3. Use `--readsummary` to inherit parameters from the previous round
 4. **Do NOT manually create any directories** — `run_galfits` handles all output directory creation
 
@@ -105,18 +105,17 @@ After each round, evaluate the average fitting score:
 ```
 obj40/
 ├── obj40_s1.lyric                              # Original config (NEVER modify)
-├── obj40_s1_iter2.lyric                        # Round 2 config (write here)
-├── obj40_s1_iter3.lyric                        # Round 3 config (write here)
+├── fitting_log.md                              # Auto-generated fitting log
 ├── output/                                     # Auto-managed by run_galfits
 │   ├── 20260423_142428_obj40_s1/               # Round 1 output (auto-created)
 │   │   ├── obj40_s1.gssummary                  # Round 1 results
 │   │   └── obj40_s1.lyric                      # Config copy
 │   ├── 20260423_143334_obj40_s1_iter2/         # Round 2 output (auto-created)
 │   │   ├── obj40_s1_iter2.gssummary            # Round 2 results
-│   │   └── obj40_s1_iter2.lyric                # Config copy
+│   │   └── obj40_s1_iter2.lyric                # Config (copied from /tmp/)
 │   └── 20260423_144053_obj40_s1_iter3/         # Round 3 output (auto-created)
 │       ├── obj40_s1_iter3.gssummary            # Round 3 results
-│       └── obj40_s1_iter3.lyric                # Config copy
+│       └── obj40_s1_iter3.lyric                # Config (copied from /tmp/)
 ```
 
 ---
