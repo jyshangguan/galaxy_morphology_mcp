@@ -44,10 +44,11 @@ def load_gs_model(config_lyric, workplace, prior_path = None,):
 
         ## fill value
         for loopx in range(len(smfile)):
-            # NOTE: skip nan values
-            if np.isnan(smfile["best_value"][loopx]):
+            # TODO(FIXME?): skip nan values and names not existed in Myfitter.lmParameters
+            name, best_value = smfile['pname'][loopx], smfile['best_value'][loopx]
+            if np.isnan(best_value) or name not in Myfitter.lmParameters:
                 continue
-            Myfitter.lmParameters[smfile['pname'][loopx]].value = smfile["best_value"][loopx]
+            Myfitter.lmParameters[name].value = best_value 
 
             # TODO: Can it be moved outside the loop to speed up ?
             Myfitter.loose_fix_pars()
@@ -491,8 +492,9 @@ def update_lyric_with_gssummaries(
                 |
 
     Args:
-        lyric_file: Path to the target lyric file to be updated.
+        lyric_file: Path to the original lyric file. 
         mock_root: Path to the mock root directory.
+        new_lyric_file: Path to save the updated lyric file. If None, the original lyric file will be overwritten.
 
     Returns:
         Dictionary with status and message:
@@ -563,12 +565,16 @@ if __name__ == '__main__':
     workplace = "/home/jiangbo/galaxy_morphology_mcp/GALFITS_examples/latest/results/obj692"
     args = ["--fit_method", "ES"]
 
-    result = ImageFitting(lyric_file=lyric_file, workplace=workplace, args=args)
-    print(result)
+    # result = ImageFitting(lyric_file=lyric_file, workplace=workplace, args=args)
+    # print(result)
 
+    lyric_file = "/home/jiangbo/GALFITS_examples/40/obj40.lyric"
+    workplace = "/home/jiangbo/GALFITS_examples/40/output/20260429_162156_obj40"
+    new_lyric_file = "/tmp/updated.lyric"
+    args = []
     result = PureSEDFitting(lyric_file=lyric_file, workplace=workplace, new_lyric_file=new_lyric_file, mock_root=None, args=args)
     print(result)
 
-    result = ImageSEDFitting(lyric_file=new_lyric_file, workplace=workplace + "_2", args=args)
-    print(result)
+    # result = ImageSEDFitting(lyric_file=new_lyric_file, workplace=workplace + "_2", args=args)
+    # print(result)
 

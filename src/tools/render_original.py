@@ -11,6 +11,7 @@ from scipy.ndimage import gaussian_filter
 from typing import Any, Annotated
 
 from .parse_feedme import parse_feedme
+from .parse_lyric import parse_image_infos_from_lyric
 
 
 def render_asinh_panel(ax, sci, mask, region=None, nmin=1, show_isophotes=True,
@@ -114,24 +115,56 @@ def render_asinh_panel(ax, sci, mask, region=None, nmin=1, show_isophotes=True,
 
 
 def render_original(
-    config_file: Annotated[str, "absolute path to the GALFIT feedme configuration file"],
+    config_file: Annotated[str, "absolute path to the GALFIT feedme or GALFITS lyric configuration file"],
 ) -> dict[str, Any]:
-    """Render the original science image from a GALFIT feedme configuration.
+    """Render the original science image from a GALFIT feedme or GALFITS lyric configuration.
 
-    Parses the feedme to locate the input image, mask, and fitting region (H),
+    Parses the feedme/lyric to locate the input image, mask, and fitting region (H),
     crops to the ROI, and renders with asinh stretch, isophote contours, and
-    mask overlay. Saves the PNG next to the feedme file.
+    mask overlay. Saves the PNG file(s) next to the configuration file.
 
     Args:
-        config_file: Absolute path to GALFIT feedme configuration file.
+        config_file: Absolute path to the configuration file.
 
     Returns:
-        dict with status and image_file (path to the saved PNG), or status=failure.
+        dict with status and image_file(s) (path to the saved PNG), or status=failure.
     """
     config_file = os.path.abspath(config_file)
     if not os.path.exists(config_file):
-        return {"status": "failure", "error": f"Feedme file not found: {config_file}"}
+        return {"status": "failure", "error": f"Configuration file not found: {config_file}"}
 
+    # parse as lyric format
+    image_infos = parse_image_infos_from_lyric(config_file)
+    if image_infos:
+        rendered_images = {}
+        for image_info in image_infos:
+            sci_full = fits.getdata(*image_info.image)
+            mask_full = np.zeros_like(sci_full, dtype=int)
+            if image_info.mask:
+                mask_full = fits.getdata(*image_info.mask).astype(int)
+            fig, ax = plt.subplots(figsize=(3.84, 3.84))    
+            info = render_asinh_panel(ax, sci_full, mask_full, region=None)
+            title_line = (
+                f"band: {image_info.band}"
+                f"\nasinh norm: asinh_a={info['asinh_a']:.4f}; vmin={info['vmin_sigma']:.1f}$\\sigma$; vmax=99.5th pctl"
+                f"\nIsophotes: 5.0$\\sigma$ [lime]; vmax[red];"
+                f"\nShaded regions: Masked (ignored); Focus: Central Galaxy"
+            )
+            ax.set_title(title_line, fontsize=7, pad=4)
+            plt.tight_layout()
+
+            lyric_dir = os.path.dirname(config_file)
+            base_name = os.path.splitext(os.path.basename(config_file))[0]
+            output_path = os.path.join(lyric_dir, f"{base_name}_{image_info.band}_original.png")
+            fig.savefig(output_path, dpi=100)
+            plt.close(fig)
+            rendered_images[image_info.band] = output_path
+        return {
+            "status": "success",
+            "message": f"The original image has been successfully rendered across {len(image_infos)} observation bands.",
+            "image files": rendered_images
+        }    
+    
     params = parse_feedme(config_file)
 
     if not params["input"]:
@@ -181,3 +214,8 @@ def render_original(
         "message": f"Original image rendered to {output_path}",
         "image_file": output_path,
     }
+
+if __name__ == '__main__':
+    config_file = "/home/jiangbo/GALFITS_examples/40/obj40.lyric"
+    res = render_original(config_file)
+    print(res)
