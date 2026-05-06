@@ -10,6 +10,14 @@ import shutil
 import importlib.util
 
 
+WORKFLOW_OUTPUT_DIR_RE = re.compile(r"^\d{8}_\d{6}_.+(?:_iter\d+)?$")
+
+
+def _is_valid_workflow_output_dir(dirname: str) -> bool:
+    """Return True only for strict timestamp-based workflow directory names."""
+    return bool(WORKFLOW_OUTPUT_DIR_RE.fullmatch(dirname))
+
+
 def _write_fitting_log(
     config_file: str,
     workplace_dir: str,
@@ -52,10 +60,10 @@ def _write_fitting_log(
             cmd_parts.append(p)
     cmd_str = " ".join(cmd_parts)
 
-    # Relative paths for readability
+    # Relative paths for readability in galaxy-level fitting_log.md
     def rel(p: str) -> str:
         try:
-            return os.path.relpath(p, config_dir)
+            return os.path.relpath(p, galaxy_dir)
         except ValueError:
             return p
 
@@ -264,17 +272,35 @@ async def run_galfits(
     if prior_file and not os.path.exists(prior_file):
         return {"status": "failure", "error": f"Prior file not found: {prior_file}"}
 
-    # Find galaxy root: if config is inside output/, walk up past it
+    # Find galaxy root and determine workplace
     config_dir = os.path.dirname(os.path.abspath(config_file))
-    parts = config_dir.split(os.sep)
-    if "output" in parts:
-        config_dir = os.sep.join(parts[:parts.index("output")])
     config_basename = os.path.splitext(os.path.basename(config_file))[0]
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    os.makedirs(os.path.join(config_dir, "output"), exist_ok=True)
-    workplace_dir = os.path.join(config_dir, "output", f"{timestamp}_{config_basename}")
-    os.makedirs(workplace_dir, exist_ok=True)
-    shutil.copy(config_file, workplace_dir)
+    output_parent_dir = os.path.dirname(config_dir)
+
+    if os.path.basename(output_parent_dir) == "output":
+        galaxy_dir = os.path.dirname(output_parent_dir)
+        subdir = os.path.basename(config_dir)
+        if _is_valid_workflow_output_dir(subdir):
+            workplace_dir = config_dir
+            os.makedirs(workplace_dir, exist_ok=True)
+            work_cwd = galaxy_dir
+        else:
+            return {
+                "status": "failure",
+                "error": (
+                    f"Invalid workflow output directory name: {subdir}. "
+                    "Expected YYYYMMDD_HHMMSS_<basename> or "
+                    "YYYYMMDD_HHMMSS_<basename>_iterN. "
+                    "Legacy roundN naming is not supported."
+                ),
+            }
+    else:
+        galaxy_dir = config_dir
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        workplace_dir = os.path.join(galaxy_dir, "output", f"{timestamp}_{config_basename}")
+        os.makedirs(workplace_dir, exist_ok=True)
+        shutil.copy(config_file, workplace_dir)
+        work_cwd = galaxy_dir
 
     cmd = _build_galfits_command(config_file=config_file, workplace=workplace_dir, saveimgs=True)
 
@@ -296,7 +322,7 @@ async def run_galfits(
             text=True,
             check=False,
             timeout=timeout_sec,
-            cwd=config_dir,
+            cwd=work_cwd,
         )
     except subprocess.TimeoutExpired:
         return {

@@ -95,27 +95,30 @@ After each round, evaluate the average fitting score:
 
 ### Config File Isolation
 
-**NEVER modify the original .lyric file.** For each iteration round:
-1. Write the new config file to `/tmp/{basename}_iter{n}.lyric` (temporary staging)
-2. Pass the `/tmp/` path to `run_galfits`, which will automatically create the output directory and copy the config there
-3. Use `--readsummary` to inherit parameters from the previous round
-4. **Do NOT manually create any directories** — `run_galfits` handles all output directory creation
+**NEVER modify the original .lyric file.** For the initial fit and each later iteration:
+1. Create a timestamped output directory using `YYYYMMDD_HHMMSS_<basename>` for the initial fit or `YYYYMMDD_HHMMSS_<basename>_iterN` for later iterations
+2. Write the config file into that directory: `{galaxy_dir}/output/{timestamp}_{basename}/{basename}.lyric` for the initial fit, or `{galaxy_dir}/output/{timestamp}_{basename}_iterN/{basename}_iterN.lyric` for later iterations
+3. Pass the config path to `run_galfits`, which will detect the existing workplace and use it directly
+4. Use `--readsummary` to inherit parameters from the previous fit when continuing iterations
 
 **Directory structure example:**
 ```
 obj40/
 ├── obj40_s1.lyric                              # Original config (NEVER modify)
 ├── fitting_log.md                              # Auto-generated fitting log
-├── output/                                     # Auto-managed by run_galfits
-│   ├── 20260423_142428_obj40_s1/               # Round 1 output (auto-created)
-│   │   ├── obj40_s1.gssummary                  # Round 1 results
-│   │   └── obj40_s1.lyric                      # Config copy
-│   ├── 20260423_143334_obj40_s1_iter2/         # Round 2 output (auto-created)
-│   │   ├── obj40_s1_iter2.gssummary            # Round 2 results
-│   │   └── obj40_s1_iter2.lyric                # Config (copied from /tmp/)
-│   └── 20260423_144053_obj40_s1_iter3/         # Round 3 output (auto-created)
-│       ├── obj40_s1_iter3.gssummary            # Round 3 results
-│       └── obj40_s1_iter3.lyric                # Config (copied from /tmp/)
+├── output/                                     # Pre-created output directories
+│   ├── 20260423_142428_obj40_s1/               # Initial fit output
+│   │   ├── obj40_s1.lyric                      # Config (written before run)
+│   │   ├── obj40_s1.gssummary                  # Initial fit results
+│   │   └── ...
+│   ├── 20260423_143334_obj40_s1_iter2/         # Later iteration output
+│   │   ├── obj40_s1_iter2.lyric                # Config (written before run)
+│   │   ├── obj40_s1_iter2.gssummary            # Iteration results
+│   │   └── ...
+│   └── 20260423_144053_obj40_s1_iter3/         # Later iteration output
+│       ├── obj40_s1_iter3.lyric                # Config (written before run)
+│       ├── obj40_s1_iter3.gssummary            # Iteration results
+│       └── ...
 ```
 
 ---
@@ -263,7 +266,7 @@ When editing .lyric files, you MUST:
 
 1. **Read current config first** - Never assume contents
 2. **Reference SKILL** (`/skill galfits-manual`) for correct parameter format
-3. **NEVER modify the original .lyric file** - write new config in the galaxy's main directory with `_iter{n}` suffix
+3. **NEVER modify the original .lyric file** - write the new config into a timestamped output directory using `YYYYMMDD_HHMMSS_<basename>` for the initial fit or `YYYYMMDD_HHMMSS_<basename>_iterN` for later iterations
 4. **Use Write tool** to create new config files (not Edit on originals)
 
 **Example: Adding a bar component**
@@ -293,7 +296,7 @@ Ga2) ['a','b','c']  # Add 'c' for the new bar component
 | Parameter | Purpose | When to Use |
 |-----------|---------|-------------|
 | `--fit_method ES` | Evolution Strategy optimizer | All image-fitting rounds (REQUIRED) |
-| `--readsummary <.gssummary>` | Carry forward best-fit params from previous round | Every round after Round 1 |
+| `--readsummary <.gssummary>` | Carry forward best-fit params from previous fit | Every iteration after the initial fit |
 | `--prior <.prior>` | Apply mass/size constraints | When prior file is available in galaxy directory |
 | `--saveimgs` | Save diagnostic images | Always |
 
@@ -356,8 +359,8 @@ Phase 1
 每轮执行以下流程：
 
 **步骤 1. 执行拟合**
-* Round 1: 使用 `run_galfits` 执行拟合，通过 `extra_args` 传入 `--fit_method ES`。
-* Round 2+: 使用 `run_galfits`，传入 `read_summary` 参数指向上一轮的 .gssummary 文件，以及 `prior_file` 参数指向 .prior 文件（若存在），通过 `extra_args` 传入 `--fit_method ES`。
+* 首次拟合：先在 `output/{timestamp}_{basename}/` 中写入配置文件，再使用 `run_galfits` 执行拟合，并通过 `extra_args` 传入 `--fit_method ES`。
+* 后续迭代：先在 `output/{timestamp}_{basename}_iterN/` 中写入新的配置文件，再使用 `run_galfits`；传入 `read_summary` 参数指向上一轮的 `.gssummary` 文件，以及 `prior_file` 参数指向 `.prior` 文件（若存在），并通过 `extra_args` 传入 `--fit_method ES`。
 * 等待拟合完成，获取 image_fit.png、.gssummary、.params。
 
 **步骤 2. 残差分析**
@@ -385,7 +388,7 @@ Phase 1
   - **平均分 ≥ 60 (Tier 2 Good or above)**: STOP，进入阶段三报告结果。
   - **平均分 < 60 (Tier 3 Fair or below)**: 自动进入下一轮迭代，无需询问用户。
   - 达到 5 轮上限：报告当前最佳结果。
-* 如需添加/修改成分，遵循 Component Parameter Inheritance 规则，使用 `/skill galfits-manual` 获取正确的参数格式，写入新的 `{basename}_iter{n}.lyric` 文件。
+* 如需添加/修改成分，遵循 Component Parameter Inheritance 规则，使用 `/skill galfits-manual` 获取正确的参数格式，写入新的 `output/{timestamp}_{basename}_iterN/{basename}_iterN.lyric` 文件。
 * 如遇到系统性偏差或无法更新 mask，进入阶段三并说明问题。
 
 **每轮输出简要评估记录：**
