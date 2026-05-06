@@ -25,7 +25,6 @@ from tools.view_original_image import view_original_image
 from tools.render_original import render_original
 from tools.pix2radec import pix2radec
 from tools.prompt import workflow_galfit, workflow_galfits
-from tools.classify_galaxy import classify_galaxy, describe_galaxy
 from starlette.responses import Response, JSONResponse
 from dotenv import load_dotenv
 
@@ -37,14 +36,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastMCP(name='galaxy-morphology-mcp')
-app.add_tool(add_components)
-app.add_tool(run_galfit)
-app.add_tool(run_galfits)
-app.add_tool(galfit_analyze_by_vlm)
-app.add_tool(galfits_analyze_by_vlm)
-app.add_tool(pix2radec)
-app.add_tool(classify_galaxy)
-app.add_tool(describe_galaxy)
 
 def _register_tools_and_prompts():
     """Conditionally register tools and prompts based on environment variables."""
@@ -52,10 +43,9 @@ def _register_tools_and_prompts():
     has_galfits = bool(os.getenv("GALFITS_BIN"))
 
     if has_galfit:
-        # app.add_tool(add_components)
-        # app.add_tool(delete_components)
+        app.add_tool(add_components)
         app.add_tool(run_galfit)
-        # app.add_tool(galfit_analyze_by_vlm)
+        app.add_tool(galfit_analyze_by_vlm)
         app.add_prompt(workflow_galfit)
         logger.info("Registered GALFIT tools (GALFIT_BIN is set)")
 
@@ -70,12 +60,12 @@ def _register_tools_and_prompts():
     app.add_tool(view_original_image)
     app.add_tool(render_original)
     app.add_tool(component_analysis)
-    # app.add_tool(pix2radec)
+    app.add_tool(pix2radec)
 
     if not has_galfit and not has_galfits:
         logger.warning(
             "Neither GALFIT_BIN nor GALFITS_BIN is set. "
-            "Only generic tools (view_original_image, pix2radec) are registered."
+            "Only environment-independent tools are registered."
         )
 
 load_dotenv()
