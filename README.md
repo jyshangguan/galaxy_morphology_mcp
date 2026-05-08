@@ -73,9 +73,10 @@ OPENAI_API_KEY=your_api_key_here
 OPENAI_BASE_URL=           # 可选，默认使用官方端点
 OPENAI_MODEL=gemini-3-flash-preview  # 推荐 gemini-3-flash-preview（性价比高）
 
-# 分析后端选择：vlm（默认）或 cc
+# 分析后端选择：vlm（默认）、cc 或 acp
 # vlm: 使用 OpenAI 兼容 API 进行分析（需配置 OPENAI_*）
 # cc:  使用 Claude Code Agent SDK 进行分析（需配置 CLAUDECODE_*）
+# acp: 使用 Gemini CLI ACP 模式进行分析（默认使用本地已登录会话）
 ANALYSIS_MODE=vlm
 
 # Claude Code Agent SDK 配置（ANALYSIS_MODE=cc 时需要）
@@ -85,6 +86,12 @@ ANALYSIS_MODE=vlm
 CLAUDECODE_API_KEY=your_anthropic_api_key_here
 CLAUDECODE_BASE_URL=xxx
 CLAUDECODE_MODEL=gemini-3-flash-preview 
+
+# Gemini CLI ACP 模式配置 (ANALYSIS_MODE=acp 时)
+# 默认使用本地通过 `gemini login` 建立的会话。
+# 如在 CI 等无登录环境，可配置 GEMINI_API_KEY。
+# GEMINI_API_KEY=your_google_api_key_here
+# GEMINI_MODEL=gemini-2.0-flash
 
 # GALFIT 配置
 GALFIT_BIN=/path/to/galfit  # GALFIT 可执行文件路径
@@ -154,6 +161,7 @@ python -m mcp_server --transport http --port 38507
 > **分析模式说明：** `ANALYSIS_MODE` 控制残差分析（`component_analysis`）的后端：
 > - `vlm`（默认）：通过 OpenAI 兼容 API 调用多模态模型，需配置 `OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL`。
 > - `cc`：通过 Claude Code Agent SDK 调用 Anthropic API，需配置 `CLAUDECODE_API_KEY`。支持通过 [Claude Code Router](https://github.com/musistudio/claude-code-router) 代理到其他 LLM 提供商。
+> - `acp`：通过 Gemini CLI ACP 模式调用分析，默认使用 `gemini login` 后的本地会话。
 
 ## 项目结构
 

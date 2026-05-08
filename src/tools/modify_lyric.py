@@ -3,7 +3,7 @@ import re
 
 from typing import Annotated
 
-from src.tools.analyze_image import create_vlm_client
+from tools.analyze_image import create_vlm_client
 
 
 TUPLE_SPECIFICATION = """

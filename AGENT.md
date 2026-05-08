@@ -100,7 +100,7 @@ G) galaxy.cons      # Parameter constraint file (empty string)
 ## 物理意义分析与策略
 
 * 在拟合得到的结果中，如果目标源的一个成分给出的参数满足n<1 （n~0.5）同时q< 0.5，这个成分可能是个bar或者edge-on disk。如果这个源在这个成分之外存在一个re大于此成分的disk成分， 则可以把这个成分修改成bar 进行拟合（n固定成0.5的sersic model）；如果此成分是该星系唯一成分，则可以不做修改。
-* 如果一个sersic  model拟合出来的结果 , re很小，远远小于1个pixel，意味着这个成分拟合的是一个点源，可以换成PSF model去拟合。
+* 如果一个sersic  model拟合出来的结果 , re很小，远远小于1个pixel(比如0.2个像素，非远小于不需要调整)，意味着这个成分拟合的是一个点源，可以换成PSF model去拟合。
 * 同一个源的两个成分bulge+disk拟合完，如果bulge和disk中心之间的距离大于disk成分本身的re，可能两个成分拟合到两个不同的源上了。后续调整可以考虑增加一个成分拟合伴源，同时通过constrain文件限制同一个源不同成分之间中心的距离。
 * 对于盘星系而言，同一个源的两个成分bulge+disk拟合完，如果bulge的re 大于disk的re，意味着在拟合的过程中，bulge和disk的标签反了，可以交换这两个成分的标签。如果是3个成分拟合同一个源，通常情况存re_disk>re_bar>re_bulge,可以以此逻辑更新成分的标签。
 
@@ -128,14 +128,43 @@ G) galaxy.cons      # Parameter constraint file (empty string)
 - mag（积分星等）：如果是多成分拟合，可以将总星等按经验比例分配（例如核球比盘暗 1-2 个星等）。
 - b/a（轴比）：视觉估算。正圆为 1，越扁越接近 0。
 - PA（位置角）：长轴相对于 y 轴（通常是正北）逆时针旋转的角度。初始值通过原图中预估
-- 在多组件拟合（例如拟合双 Sérsic 或 Bulge+Disk）时，如果不小心给两个组件赋予了完全相同的初始 $(x,y)$ 坐标、$R_e$ 和亮度，雅可比矩阵中的两列会变得完全线性相关。这在数学上导致矩阵无法求逆，算法无法计算下一步的步长。如果多个组件共处同一位置，必须在生成 参数 时引入微小扰动
 - 多组件拟合的光度与尺寸拆分策略： 如果你准备拟合核球+盘 (Bulge+Disk) 的双 Sérsic 模型，绝对不能把 SExtractor 测出的总星等和总半径原封不动地同时赋予两个组件。经验法则：
     - 通量分配： 将测得的总通量按 $3:7$ 或 $4:6$ 的比例拆分，分别转换为星等赋值给核球和盘。
     - 尺寸分配： 核球的初始 $R_e$ 通常设为测光总半径的 $1/5$ 到 $1/3$；盘的 $R_e$ 则设为测光总半径的 $1 \sim 1.5$ 倍。
     - 形态分配： 核球初始给定 $n=4.0$（接近德沃库勒尔定律），盘初始给定 $n=1.0$（指数盘）。
 ---
 
-1. sersic — 常用于 BULGE
+在使用 GALFIT 进行三成分拟合时，核球（Bulge）与星系棒（Bar）通常使用 sersic 模型，而星系盘（Disk）建议使用专用的 expdisk 模型。以下是严格的参数初始化与约束规则：
+
+### 1. Bulge（核球）— sersic 模型
+
+- **Sérsic 指数 (n)**：
+  - 经典核球 (Classical)：初始化 n = 4 (de Vaucouleurs 轮廓)。
+  - 伪核球 (Pseudobulge)：初始化 n = 1。
+  - 未知类型：初始化 n = 2 或 2.5，设为允许自由拟合 (vary=1)。
+- **有效半径 (R_e)**：通常为尺寸最小的成分。
+
+### 2. Bar（星系棒）— sersic 模型（需硬约束）
+
+星系棒极易与核球或盘发生流量简并，必须施加严格的硬约束：
+
+- **Sérsic 指数 (n) [硬约束]**：强制固定为 n = 0.5（即 vary=0）。
+  - 异常处理：若允许自由演化且 n > 1，会导致结构分解失效。
+- **轴比 (b/a 或 q) [硬约束]**：初始化在 0.2 - 0.4 之间。约束上限设定为 < 0.5。
+  - 异常处理：若演化结果 b/a > 0.6，会导致 Bar 的流量被错误地并入 Bulge。
+- **位置角 (PA) [高敏感]**：必须根据图像手动测量长轴后初始化。
+  - 若初始 PA 偏离真实值 > 45°，算法易拟合到背景噪声上。
+- **有效半径 (R_e)**：尺寸居中。
+
+### 3. Disk（星系盘）— expdisk 模型
+
+- **模型特性**：expdisk 是纯指数盘模型，没有 Sérsic 指数 n 参数。
+- **尺寸参数 (R_s)**：请注意，expdisk 的第 4 项参数是标度长 (Scale length, $R_s$)，而非有效半径 ($R_e$)。
+  - 换算关系：对于指数盘，有效半径与标度长的关系为 $R_e \approx 1.678 \times R_s$。
+- **轴比与 PA**：通常反映星系整体在天空平面的倾角和投影方向。
+
+
+1. sersic — 常用于 BULGE / Bar
 
 0) sersic                 #  Component type
 1) <x>  <y>  1 1          #  Position x, y
@@ -149,9 +178,6 @@ G) galaxy.cons      # Parameter constraint file (empty string)
 10) <PA>       1          #  Position angle (PA) [deg]
 Z) 0                      #  Skip this model? (yes=1, no=0)
 
-关键参数：R_e（有效半径）、n（Sérsic 指数）
-- R_e（有效半径/半光半径）：大概是核球主体光晕的半径大小。
-- n（Sersic 指数）：控制光度分布的核心浓度和边缘衰减速度。如果是经典核球 (Classical Bulge) 或 椭圆星系，初始化为 4（即 de Vaucouleurs 轮廓）。如果是伪核球 (Pseudobulge) 或盘，初始化为 1（即指数轮廓）。如果不确定，可以折中初始化为 2 或 2.5 让其自由拟合。
 ---
 1. expdisk  — 常用于 DISK 专为指数衰减的星系盘设计（等效于 n=1 的 Sersic 模型）。
 
@@ -169,44 +195,6 @@ Z) 0                      #  Skip this model?
 
 关键参数：R_s（盘标长）
 - R_s（盘标长 Scale-length）：表面亮度下降 $e$ 倍（约 2.718 倍）的距离。它与有效半径 $R_e$ 的数学关系为：$R_e \approx 1.678 R_s$。初始化方法：如果你知道盘的半光半径（通过测光或肉眼估计盘的范围），除以 1.678 即可作为 R_s 的初始值。肉眼看的话，大概是盘的整体可见半径的 1/3 到 1/4 左右。
-
----
-1. ferrer  — 常用于 DISK（截断盘 / 棒 Bar / 透镜）Ferrer 轮廓的特点是中心比较平缓，而在外部有一个清晰的截断边界（Sharp drop-off），非常适合拟合星系棒 (Bar)。
-
-0) ferrer                 #  Component type
-1) <x>  <y>  1 1          #  Position x, y
-3) <mu>        1          #  Surface brightness at FWHM [mag/arcsec^2]
-4) <R_out>     1          #  Outer truncation radius [pix]
-5) <alpha>     0          #  Alpha (outer truncation sharpness)
-6) <beta>      0          #  Beta (central slope)
-7) 0.0000      0          #  -----
-8) 0.0000      0          #  -----
-9) <b/a>       1          #  Axis ratio (b/a)
-10) <PA>       1          #  Position angle (PA) [deg: Up=0, Left=90]
-Z) 0                      #  Skip this model?
-
-关键参数：R_out（外截断半径）、alpha（截断锐度）、beta（中心斜率）
-- mu（中心/半高宽处表面亮度）：通常用中心最亮处的表面亮度估计值（mag/arcsec^2）。
-- R_out（外截断半径）：肉眼观察棒（Bar）或截断盘的边缘，测量从中心到明显截断处的像素距离。
-- alpha（截断锐度）：控制边缘截断有多“陡峭”。通常初始化为 2 或 3。
-- beta（中心斜率）：控制中心的平坦程度。如果是典型的星系棒，中心较平，通常初始化为 0（完全平坦）或 0.5。
-
----
-1. ferrer2  —  常用于 DISK（截断盘 / 棒 Bar / 透镜）。 ferrer2 是 ferrer 的改进版，亮度归一化在半高宽（FWHM）处，拟合更稳定、收敛更快，非常适合拟合星系棒 (Bar)。
-
-0) ferrer2                #  Component type
-1) <x>  <y>  1 1          #  Position x, y
-3) <mu_FWHM>    1         #  Surface brightness at FWHM [mag/arcsec^2]
-4) <R_FWHM>     1         #  FWHM radius (half-light radius) [pix]
-5) <alpha>      0         #  Alpha (outer truncation sharpness)
-6) <beta>       0         #  Beta (central slope)
-7) 0.0000       0         #  -----
-8) 0.0000       0         #  -----
-9) <b/a>        1         #  Axis ratio (b/a)
-10) <PA>        1         #  Position angle (PA) [deg: Up=0, Left=90]
-Z) 0                      #  Skip this model?
-
-关键参数：mu_FWHM（半高宽处的表面亮度，不是中心亮度）、R_FWHM（半高宽半径，光度降到一半的半径），其它参数同ferrer
 
 ---
 1. edgedisk — 常用于沿着视线方向几乎垂直观察的薄盘（$Z$ 轴方向的亮度分布）。
@@ -241,6 +229,10 @@ Z) 0                      #  Skip this model?
 - 要增加成分BULGE： Component type选用 sersic.
 - 要增加沿着视线方向几乎垂直观察的薄盘：Component type选用 edgedisk。
 - 要增加活动星系核 AGN / 恒星 / 极其致密的核：Component type选用psf 
-- 要增加截断盘 / 棒 Bar / 透镜）：Component type选用ferrer (等效于 n~0.5 的 Sersic 模型，且有外截断特征）。)
+- 要增加棒 Bar：Component type选用  n~0.5 的 Sersic 模型.
 - 要增加指数衰减的星系盘disk: Component type选用expdisk（等效于 n=1 的 Sersic 模型）。
 - 对于Bar而言， PA 需要从图中观察的位置角，提供一个相对可靠的初值；否则galfit很难收敛；
+
+
+## Galfit 执行规范
+- 执行 Galfit 优化，必须使用 galmcp 中的run_galfit工具， 不能直接使用用bash工具执行 galfit 命令行。因为 run_galfit 工具会自动处理一些后续的分析步骤（如残差图生成、参数解析等），直接调用 galfit 可能会导致后续流程无法
