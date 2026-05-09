@@ -18,7 +18,7 @@ def component_analysis(
     image_file: Annotated[str, "Path to the combined residual image file [png file] containing three stamps: original, model, residual"],
     summary_file: Annotated[str, "Path to the optimization summary file containing detailed fitting information"],
     mode: Annotated[str, "Fitting mode: 'single-band' for GALFIT or 'multi-band' for GalfitS"],
-    custom_instructions: Annotated[str, "Context for this round of analysis: must include (1) scientific objective of this fitting task (e.g., bulge-disk decomposition, bar identification, AGN detection), (2) summary of all previously executed rounds' adjustments and outcomes, and (3) description of the current fitting status / residual situation. Additional specific requirements can also be appended."] = "",
+    custom_instructions: Annotated[str, "Context for this round of analysis: must include (1) scientific objective of this fitting task  (2) file path of `working_note.md`"] = "",
 ) -> dict[str, Any]:
     """
     Analyze galaxy fitting results to determine component composition and parameter adjustments.
@@ -40,8 +40,7 @@ def component_analysis(
         mode (str): 'single-band' for GALFIT or 'multi-band' for GalfitS.
         custom_instructions (str): Required context for multi-round iterative fitting. Must contain:
             1. **Scientific objective** — the scientific goal of this fitting task (e.g., bulge-disk decomposition, bar identification, AGN detection, galaxy morphology classification).
-            2. **Round history summary** — what components were added/removed/adjusted in each previous round and their outcomes.
-            3. **Current status** — the present residual situation and fitting quality.
+            2. **Round history summary** — file path of `working_note.md`                 
             Additional specific requirements or constraints can also be appended.
 
     Returns:
@@ -104,7 +103,7 @@ def component_analysis(
         step1 = f'''
 你是一个集成了“计算机视觉特征提取”与“天体物理形态学专家推理”的自动化诊断 Agent。你的任务是基于 GALFIT 的拟合结果，通过严密的四步思维链（Chain-of-Thought），诊断当前模型的缺陷，并输出下一步的调整决策,
 
-在这个过程中只能使用read_file 和 write_todo 工具，不能使用其他工具。
+在这个过程中只能使用read_file 和 write_file 工具，不能使用其他工具。 write_file 可以用于编写 /tmp/todo_xxx.md来记录代办进展。
 
 【输入信息】
 1. 参数汇总：
@@ -129,20 +128,22 @@ def component_analysis(
 4. 1D 轮廓图：描述 x、y坐标意义；数据曲线、模型曲线的结构特征；成分组成与成分曲线的结构特征、流量比例。
 5。1D 残差图：描述 x、y坐标意义；残差曲线（Data-Model）的结构特征；特别是 R = 0 附近的残差表现，以及残差曲线在不同半径范围内的震荡特征。
 
-**阶段三：物理映射与诊断树推理（专家思维链）**
+**阶段三：物理映射与诊断树推理（专家思维链CoT）**
 结合阶段一和二的客观发现，以及【残差图分析与决策诊断树】，进行严密推导：
 1. 异常归因：分析残差和参数异常的根本原因，明确说明问题是源于数据污染、优化算法陷入局部极小值，还是缺失或冗余了特定的核心物理成分。
 2. 物理成分映射：仅限在“核球(Bulge)、盘(Disk)、侧视盘(Edge-on Disk)、棒(Bar)、致密核(AGN/PSF)”这五种物理成分范围中进行成分映射与增减考量。
 3. 冲突校验：交叉对比二维/一维视觉残差表现与参数边界状态，推演是否存在两者指向相左的逻辑冲突，并给出化解该物理冲突的推导逻辑。
 
-**阶段四：最小化原子动作输出（奥卡姆剃刀）**
+**阶段四：最小化原子动作输出**
 - 只提供一个最重要的结论（不允许一次增加或删除多个成分）。
-- 调整成分的同时，如果需要同步修改其他成分的参数也需同步提供。
+    - 处理优先级如下：优先确认上一轮的目标是否达成，达成后再进行下一轮的调整。如果上一轮的目标没有完全达成，优先继续调整该目标，
+    - 成分添加遵守由外到内，尺寸由大到小原则。
+- 初始值参数要基于现有成分和目标成分进行有效推理和高质量预估。需要确定 x,y,n,man,Re,ba,pa等关键参数的调整方向和幅度。
 - 输出格式要求：
     ···
     ## 本次调整决策如下：
-    # 1。本次调整物理目标:xxx 
-    # 2。具体内容:xxx"
+    # 1.本次调整物理目标:xxx 
+    # 2.具体调整内容:xxx"（包含新一轮拟合的所需的成分的参数初值）    
     ···
 
 '''

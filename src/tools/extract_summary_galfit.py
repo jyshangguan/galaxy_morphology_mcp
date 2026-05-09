@@ -2,6 +2,7 @@
 
 import os
 import re
+import math
 from pyparsing import Any
 
 def extract_galfit_fit_log(log_file_path):
@@ -281,6 +282,13 @@ def parse_model_hdu_header(header) -> dict[str, Any]:
         if "CHI2NU" in header:
             result["statistics"]["chi2_nu"] = safe_float(str(header["CHI2NU"]))
 
+        # Compute BIC = χ² + k·ln(N_dof)
+        chi2 = result["statistics"].get("chi2")
+        ndof = result["statistics"].get("ndof")
+        nfree = result["statistics"].get("nfree")
+        if chi2 is not None and ndof is not None and nfree is not None and ndof > 0:
+            result["statistics"]["bic"] = chi2 + nfree * math.log(ndof)
+
         # Find all component headers (COMP_1, COMP_2, etc.)
         comp_numbers = []
         for key in header.keys():
@@ -477,6 +485,29 @@ def extract_summary_from_galfit(fits_file: str, config_file: str = None) -> str 
             if fit_result:
                 md_lines.append("## Fit log Content")
                 md_lines.append(fit_result)
+
+        # Fitting Statistics section
+        stats = fit_results.get("statistics", {})
+        if stats:
+            md_lines.append("---")
+            md_lines.append("")
+            md_lines.append("## Fitting Statistics")
+            md_lines.append("")
+            md_lines.append("| Statistic | Value |")
+            md_lines.append("|-----------|-------|")
+            if "chi2" in stats:
+                md_lines.append(f"| χ² | {stats['chi2']:.4f} |")
+            if "ndof" in stats:
+                md_lines.append(f"| N_dof (degrees of freedom) | {stats['ndof']} |")
+            if "nfree" in stats:
+                md_lines.append(f"| N_free (free parameters) | {stats['nfree']} |")
+            if "nfix" in stats:
+                md_lines.append(f"| N_fix (fixed parameters) | {stats['nfix']} |")
+            if "chi2_nu" in stats:
+                md_lines.append(f"| χ²/ν (reduced chi-squared) | {stats['chi2_nu']:.6f} |")
+            if "bic" in stats:
+                md_lines.append(f"| BIC | {stats['bic']:.4f} |")
+            md_lines.append("")
 
         # Observation metadata section
         md_lines.append("---")

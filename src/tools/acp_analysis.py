@@ -109,7 +109,7 @@ async def _query_agent(
     """
     import tempfile
 
-    full_system_prompt = system_prompt + "\n\n${read_file_ToolName}"
+    full_system_prompt = system_prompt + "\n\n${read_file_ToolName},${write_file_ToolName}"
 
     with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as tf:
         tf.write(full_system_prompt)

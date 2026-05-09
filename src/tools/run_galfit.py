@@ -423,7 +423,7 @@ async def run_galfit(
         "- output_param_file: the latest GALFIT output parameter file.\n"
         "- optimized_fits_file: FITS file with original, model, and residual image extensions.\n"
         "- image_file: 1×4 PNG (original | model | residual | 1D SB profile with residual panel).\n"
-        "- summary_file: Markdown file containing fitted parameters, chi-squared statistics, and observation metadata.\n"
+        "- summary_file: Markdown file containing fitted parameters, chi-squared statistics, BIC, and observation metadata.\n"
         "- console_log_file: GALFIT console log from this run.\n"        
     )
     return {
