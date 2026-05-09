@@ -212,6 +212,7 @@ def create_comparison_png(
         im3 = None
         if residual_data is not None:
             resid_display = residual_data.copy()
+            resid_display[~np.isfinite(resid_display)] = 0
 
             # Normalize by background std from original image (significance map)
             bg_std = orig_info.get("std", 1.0)

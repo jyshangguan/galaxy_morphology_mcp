@@ -44,6 +44,7 @@ def render_asinh_panel(ax, sci, mask, region=None, nmin=1, show_isophotes=True,
     else:
         mean, median, std = sigma_clipped_stats(sci, mask=mask)
         valid = sci[mask == 0]
+        valid = valid[np.isfinite(valid)]
         vmin = median - nmin * std
         vmax = np.percentile(valid, 99.5)
         data_range = vmax - vmin

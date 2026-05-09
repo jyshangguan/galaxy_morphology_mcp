@@ -16,19 +16,8 @@ try:
 except ImportError:
     HAS_PHOTUTILS = False
 
-COMP_INFO = {
-    'sersic': ('#1f77b4', 'Bulge (Sérsic)'),
-    'expdisk': ('#2ca02c', 'Disk (expdisk)'),
-    'ferrer': ('#ff7f0e', 'Bar (Ferrers)'),
-    'psf': ('#d62728', 'PSF (AGN)'),
-    'edgedisk': ('#9467bd', 'Edge-on Disk'),
-    'gaussian': ('#8c564b', 'Gaussian'),
-    'moffat': ('#e377c2', 'Moffat'),
-    'devauc': ('#1f77b4', 'Bulge (de Vac)'),
-    'sky': ('#7f7f7f', 'Sky'),
-}
 DEFAULT_COLORS = ['#1f77b4', '#2ca02c', '#ff7f0e', '#d62728',
-                  '#9467bd', '#8c564b', '#e377c2']
+                  '#9467bd', '#8c564b', '#e377c2', '#7f7f7f']
 
 
 def parse_photometry_params(param_file: str) -> tuple[float, float]:
@@ -52,26 +41,32 @@ def fit_data_isophotes(image_data, x_center, y_center,
     """Fit isophotes using photutils. Returns IsophoteList or None."""
     if not HAS_PHOTUTILS:
         return None
+    # Replace NaN with 0 to prevent photutils sampling failures at image edges
+    if np.any(np.isnan(image_data)):
+        image_data = np.nan_to_num(image_data, nan=0.0)
     maxsma = sma_max or min(1200.0, max(image_data.shape) * 0.45)
-    pa_candidates = [
-        np.radians(pa_deg) if pa_deg is not None else 0.0,
-        0.0, np.radians(90),
-    ]
-    eps_candidates = [eps if eps is not None else 0.3, 0.1, 0.3, 0.5]
+    ny, nx = image_data.shape
+    edge_dist = min(x_center, y_center, nx - x_center, ny - y_center)
+    maxsma = min(maxsma, edge_dist * 0.9)
+
     strategies = [
         {"sma0": 10.0, "integrmode": "median", "step": 0.2},
         {"sma0": 5.0, "integrmode": "bilinear", "step": 0.15},
         {"sma0": 20.0, "integrmode": "median", "step": 0.2},
-        {"sma0": 15.0, "integrmode": "bilinear", "step": 0.2},
         {"sma0": 3.0, "integrmode": "bilinear", "step": 0.1},
     ]
+    pa_rad = np.radians(pa_deg) if pa_deg is not None else None
+    eps_val = eps if eps is not None else None
+
     best_result = None
-    for pa_rad in pa_candidates:
-        for eps_val in eps_candidates:
-            for strat in strategies:
+    for strat in strategies:
+        for pa in [pa_rad, 0.0, np.radians(90)]:
+            if pa is None:
+                pa = 0.0
+            for ev in [eps_val, 0.1, 0.3, 0.5] if eps_val is None else [eps_val]:
                 try:
                     geo = EllipseGeometry(x_center, y_center, strat["sma0"],
-                                          eps_val, pa_rad)
+                                          ev, pa)
                     ellipse = Ellipse(image_data, geometry=geo)
                     isolist = ellipse.fit_image(
                         sma0=strat["sma0"], minsma=1.0, maxsma=maxsma,
@@ -233,11 +228,12 @@ def render_sb_profile(ax_main, ax_resid, original_data, model_data,
             mu_c = intensity_to_sb(intens_c, zeropoint, pltscale)
             sma_c_arcsec = sma_c * pltscale
 
-            color, display_name = COMP_INFO.get(
-                comp_type.lower(),
-                (DEFAULT_COLORS[i % len(DEFAULT_COLORS)], comp_type))
-
-            label = f'{display_name} {comp_fractions[i]:.3f}'
+            color = DEFAULT_COLORS[i % len(DEFAULT_COLORS)]
+            if comp_type.lower() == 'sersic' and components and i < len(components):
+                n_val = components[i].get('n')
+                label = f'sersic(n={n_val:.2f}) {comp_fractions[i]:.3f}' if n_val is not None else f'sersic {comp_fractions[i]:.3f}'
+            else:
+                label = f'{comp_type} {comp_fractions[i]:.3f}'
             ax_main.plot(sma_c_arcsec, mu_c, '-', color=color, linewidth=1.2,
                          zorder=3, label=label)
             ax_inset.plot(sma_c_arcsec, mu_c, '-', color=color, linewidth=1.0)
