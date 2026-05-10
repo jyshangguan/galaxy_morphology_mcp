@@ -190,9 +190,8 @@ def render_sb_profile(ax_main, ax_resid, original_data, model_data,
     sma_data = isolist.sma
     intens_data = isolist.intens
     mu_data = intensity_to_sb(intens_data, zeropoint, pltscale)
-    sma_arcsec = sma_data * pltscale
     valid = np.isfinite(mu_data) & (intens_data > 0)
-    sma_arcsec = sma_arcsec[valid]
+    sma_data = sma_data[valid]
     mu_data = mu_data[valid]
 
     # Model profile using same geometry
@@ -200,19 +199,18 @@ def render_sb_profile(ax_main, ax_resid, original_data, model_data,
                 for iso in isolist if iso.valid]
     sma_model, intens_model = extract_profile(model_data, geometry)
     mu_model = intensity_to_sb(intens_model, zeropoint, pltscale)
-    sma_model_arcsec = sma_model * pltscale
 
     # Main SB panel
-    ax_main.scatter(sma_arcsec, mu_data, s=8, facecolors='none',
+    ax_main.scatter(sma_data, mu_data, s=8, facecolors='none',
                     edgecolors='black', linewidths=0.4, zorder=5, label='Data')
-    ax_main.plot(sma_model_arcsec, mu_model, 'r--', linewidth=1.2,
+    ax_main.plot(sma_model, mu_model, 'r--', linewidth=1.2,
                  zorder=4, label='Total Model')
 
     # Inset with log-scaled x-axis
     ax_inset = ax_main.inset_axes([0.55, 0.5, 0.4, 0.45])
-    ax_inset.scatter(sma_arcsec, mu_data, s=6, facecolors='none',
+    ax_inset.scatter(sma_data, mu_data, s=6, facecolors='none',
                      edgecolors='black', linewidths=0.3, zorder=5)
-    ax_inset.plot(sma_model_arcsec, mu_model, 'r--', linewidth=1.0, zorder=4)
+    ax_inset.plot(sma_model, mu_model, 'r--', linewidth=1.0, zorder=4)
 
     # Component profiles (image-based from GALFIT subcomps)
     if comp_images and comp_types:
@@ -226,7 +224,6 @@ def render_sb_profile(ax_main, ax_resid, original_data, model_data,
             if len(sma_c) == 0:
                 continue
             mu_c = intensity_to_sb(intens_c, zeropoint, pltscale)
-            sma_c_arcsec = sma_c * pltscale
 
             color = DEFAULT_COLORS[i % len(DEFAULT_COLORS)]
             if comp_type.lower() == 'sersic' and components and i < len(components):
@@ -234,19 +231,19 @@ def render_sb_profile(ax_main, ax_resid, original_data, model_data,
                 label = f'sersic(n={n_val:.2f}) {comp_fractions[i]:.3f}' if n_val is not None else f'sersic {comp_fractions[i]:.3f}'
             else:
                 label = f'{comp_type} {comp_fractions[i]:.3f}'
-            ax_main.plot(sma_c_arcsec, mu_c, '-', color=color, linewidth=1.2,
+            ax_main.plot(sma_c, mu_c, '-', color=color, linewidth=1.2,
                          zorder=3, label=label)
-            ax_inset.plot(sma_c_arcsec, mu_c, '-', color=color, linewidth=1.0)
+            ax_inset.plot(sma_c, mu_c, '-', color=color, linewidth=1.0)
 
     ax_inset.set_xscale('log')
-    ax_inset.set_xlim(sma_arcsec[sma_arcsec > 0].min() * 0.8, sma_arcsec.max() * 1.1)
+    ax_inset.set_xlim(sma_data[sma_data > 0].min() * 0.8, sma_data.max() * 1.1)
     ax_inset.invert_yaxis()
     ax_inset.tick_params(axis='both', which='major', labelsize=9)
     ax_inset.grid(True, which='both', alpha=0.1, linestyle='--')
 
     ax_main.set_ylabel(r'Surface Brightness [mag arcsec$^{-2}$]', fontsize=11)
     ax_main.invert_yaxis()
-    ax_main.set_xlim(0, sma_arcsec.max() * 1.05)
+    ax_main.set_xlim(0, sma_data.max() * 1.05)
     # Move legend to the lower right corner inside the plot
     ax_main.legend(loc='lower right', fontsize=9,
                    frameon=True, fancybox=True, framealpha=0.7)
@@ -255,14 +252,14 @@ def render_sb_profile(ax_main, ax_resid, original_data, model_data,
     ax_main.tick_params(labelbottom=False)
 
     # Residual panel: Δμ = μ_data − μ_model
-    if len(sma_model_arcsec) > 2:
+    if len(sma_model) > 2:
         from scipy.interpolate import interp1d
-        common_min = max(sma_arcsec.min(), sma_model_arcsec.min())
-        common_max = min(sma_arcsec.max(), sma_model_arcsec.max())
-        cmask = (sma_arcsec >= common_min) & (sma_arcsec <= common_max)
-        sma_common = sma_arcsec[cmask]
+        common_min = max(sma_data.min(), sma_model.min())
+        common_max = min(sma_data.max(), sma_model.max())
+        cmask = (sma_data >= common_min) & (sma_data <= common_max)
+        sma_common = sma_data[cmask]
         mu_data_c = mu_data[cmask]
-        model_interp = interp1d(sma_model_arcsec, mu_model,
+        model_interp = interp1d(sma_model, mu_model,
                                 kind='linear', bounds_error=False,
                                 fill_value=np.nan)
         residual = mu_data_c - model_interp(sma_common)
@@ -280,5 +277,5 @@ def render_sb_profile(ax_main, ax_resid, original_data, model_data,
 def _style_resid_axes(ax):
     """Apply shared styling to the residual axes."""
     ax.set_ylabel(r'$\Delta\mu$ (Data $-$ Model)', fontsize=11)
-    ax.set_xlabel(r'Semi-major Axis [arcsec]', fontsize=11)
+    ax.set_xlabel(r'Semi-major Axis [pixels]', fontsize=11)
     ax.grid(True, which='both', alpha=0.3, linestyle='--')
