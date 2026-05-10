@@ -387,7 +387,7 @@ async def run_galfit(
                                                 comp_images=comp_images, comp_types=comp_types)
 
     # Extract summary information
-    summary = extract_summary_from_galfit(output_file, config_file)
+    summary, fit_stats = extract_summary_from_galfit(output_file, config_file)
 
     # Cleanup the workspace
     ws_dir = os.path.dirname(output_file)
@@ -418,14 +418,23 @@ async def run_galfit(
     if os.path.exists(subcomps_file):
         shutil.move(subcomps_file, ar_dir)
 
+    stats_lines = ""
+    chi2_nu = fit_stats.get("chi2_nu")
+    bic = fit_stats.get("bic")
+    if chi2_nu is not None:
+        stats_lines += f"- χ²/ν (reduced chi-squared): {chi2_nu:.6f}\n"
+    if bic is not None:
+        stats_lines += f"- BIC: {bic:.4f}\n"
+
     message = (
         "GALFIT completed successfully.\n"
+        f"{stats_lines}"
         "- input_param_file: the input feedme configuration file used for this run.\n"
         "- output_param_file: the latest GALFIT output parameter file.\n"
         "- optimized_fits_file: FITS file with original, model, and residual image extensions.\n"
         "- image_file: 1×4 PNG (original | model | residual | 1D SB profile with residual panel).\n"
         "- summary_file: Markdown file containing fitted parameters, chi-squared statistics, BIC, and observation metadata.\n"
-        "- console_log_file: GALFIT console log from this run.\n"        
+        "- console_log_file: GALFIT console log from this run.\n"
     )
     return {
         "status": "success",
@@ -434,6 +443,6 @@ async def run_galfit(
         "output_param_file": latest_galfit,  
         "optimized_fits_file": output_file,      
         "image_file": comparison_png_path,
-        "summary_file": summary ,
+        "summary_file": summary,
         "console_log_file": console_log_path,
     }

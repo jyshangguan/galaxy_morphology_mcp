@@ -391,7 +391,7 @@ def parse_model_hdu_header(header) -> dict[str, Any]:
     return result
 
 
-def extract_summary_from_galfit(fits_file: str, config_file: str = None) -> str | None:
+def extract_summary_from_galfit(fits_file: str, config_file: str = None) -> tuple[str | None, dict[str, Any]]:
     """Extract comprehensive summary information from GALFIT FITS output file.
 
     Reads all information from the FITS file header (model HDU):
@@ -404,7 +404,7 @@ def extract_summary_from_galfit(fits_file: str, config_file: str = None) -> str 
     - Multiple GALFIT runs can be executed in parallel
     - No issues with log file being overwritten/append
 
-    Returns the path to the saved summary Markdown file or None if failed.
+    Returns a tuple of (summary markdown file path or None, statistics dict with chi2/bic/chi2_nu).
     """
     try:
         from astropy.io import fits
@@ -555,7 +555,8 @@ def extract_summary_from_galfit(fits_file: str, config_file: str = None) -> str 
         with open(summary_filename, 'w') as f:
             f.write('\n'.join(md_lines))
 
-        return summary_filename
+        stats = fit_results.get("statistics", {})
+        return summary_filename, stats
 
     except Exception as e:
         # Try to save error information
@@ -571,13 +572,13 @@ def extract_summary_from_galfit(fits_file: str, config_file: str = None) -> str 
 
             return summary_filename
         except:
-            return None
+            return None, {}
 
 
 if __name__ == '__main__':
-    result = extract_summary_from_galfit(
+    result, stats = extract_summary_from_galfit(
         fits_file="/home/jiangbo/galfit/galfit_examples_0128/goodsn_5536/archives/20260130T134751/goodsn_5536_f160w_galfit.fits",
         config_file="/home/jiangbo/galfit/galfit_examples_0128/goodsn_5536/archives/20260130T134751/goodsn_5536_f160w.feedme"
     )
 
-    print(result)
+    print(result, stats)
