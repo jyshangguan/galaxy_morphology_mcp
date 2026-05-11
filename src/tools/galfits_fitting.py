@@ -50,9 +50,8 @@ def load_gs_model(config_lyric, workplace, prior_path = None,):
                 continue
             Myfitter.lmParameters[name].value = best_value 
 
-            # TODO: Can it be moved outside the loop to speed up ?
-            Myfitter.loose_fix_pars()
-            Myfitter.cal_model_image()
+        Myfitter.loose_fix_pars()
+        Myfitter.cal_model_image()
     
     return Myfitter, targ
 
@@ -302,7 +301,7 @@ def ImageFitting(
             capture_output=True,
             text=True,
             check=True,
-            timeout=600,  # 10 minute timeout
+            timeout=1800,  # 10 minute timeout
         )
         return {
             "status": "success",
@@ -563,15 +562,15 @@ if __name__ == '__main__':
     lyric_file = "/home/jiangbo/galaxy_morphology_mcp/GALFITS_examples/latest/configs/obj692"
     new_lyric_file = "/tmp/updated.lyric"
     workplace = "/home/jiangbo/galaxy_morphology_mcp/GALFITS_examples/latest/results/obj692"
-    args = ["--fit_method", "ES"]
+    args = ["--fit_method", "ES", "--priorpath", "/tmp/galfits_fitting_s6tn832o/priorpath/97.prior"]
 
     # result = ImageFitting(lyric_file=lyric_file, workplace=workplace, args=args)
     # print(result)
 
-    lyric_file = "/home/jiangbo/GALFITS_examples/40/obj40.lyric"
-    workplace = "/home/jiangbo/GALFITS_examples/40/output/20260429_162156_obj40"
+    lyric_file = "/tmp/galfits_fitting_s6tn832o/97.lyric"
+    workplace =  "/tmp/galfits_fitting_s6tn832o/result/output"
     new_lyric_file = "/tmp/updated.lyric"
-    args = []
+    args = ["--fit_method", "ES", "--priorpath", "/tmp/galfits_fitting_s6tn832o/priorpath/97.prior"]
     result = PureSEDFitting(lyric_file=lyric_file, workplace=workplace, new_lyric_file=new_lyric_file, mock_root=None, args=args)
     print(result)
 
