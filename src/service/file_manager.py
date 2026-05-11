@@ -187,11 +187,13 @@ class GalfitsFileManager:
     def upload_file(self, local_file_path, oss_file_path):
         url = self.URL + self.UPLOADFILE
 
-        with open(local_file_path, "r") as f:
-            data = {"filePath": oss_file_path, "content": f.read()}
-            resp = requests.post(url, json=data)
+        if os.path.exists(local_file_path):
+            with open(local_file_path, "r") as f:
+                data = {"filePath": oss_file_path, "content": f.read()}
+                resp = requests.post(url, json=data)
 
-        resp.raise_for_status()    
+            resp.raise_for_status()    
+            print(f"upload file `{local_file_path}' to `{oss_file_path}'. resp: {resp}")
 
     def upload_folder(self, local_folder_path, target_path):
         if not target_path.endswith("/"):

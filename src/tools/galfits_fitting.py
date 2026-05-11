@@ -44,12 +44,15 @@ def load_gs_model(config_lyric, workplace, prior_path = None,):
 
         ## fill value
         for loopx in range(len(smfile)):
+            # TODO(FIXME?): skip nan values and names not existed in Myfitter.lmParameters
+            name, best_value = smfile['pname'][loopx], smfile['best_value'][loopx]
+            if np.isnan(best_value) or name not in Myfitter.lmParameters:
+                continue
+            Myfitter.lmParameters[name].value = best_value 
 
-            Myfitter.lmParameters[smfile['pname'][loopx]].value = smfile["best_value"][loopx]
+        Myfitter.loose_fix_pars()
+        Myfitter.cal_model_image()
 
-            Myfitter.loose_fix_pars()
-            Myfitter.cal_model_image()
-    
     return Myfitter, targ
 
 def extract_band_fits_pairs(config_lyric):
@@ -298,7 +301,7 @@ def ImageFitting(
             capture_output=True,
             text=True,
             check=True,
-            timeout=600,  # 10 minute timeout
+            timeout=1800,  # 30 minute timeout
         )
         return {
             "status": "success",
