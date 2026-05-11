@@ -37,14 +37,18 @@
     其中 best_turn 的值为 output/ 下最佳轮次子目录的名称（如 20260414T093323.c1993a48）。
     物理成分类型：[Disk,Bulge,EdgeDisk,Bar,Nucleus]
 
-阶段四. SED拟合和Image-SED拟合
-SED拟合和Image-SED拟合均需基于最优的Image拟合（在阶段三中已经确认）：
-* 步骤1. SED拟合。调用`run_galfits_sed_fitting`进行SED fitting。注意：`run_galfits_sed_fitting`使用的配置文件是最优的Image fitting使用的配置文件，同时需要指定该image fitting对应的输出目录（通常是output目录下的某个子目录（例如20260414T093323.c1993a48）。
-    - SED拟合只需要成功拟合一次即可进入步骤5；若SED拟合失败，需要分析原因并重新SED拟合
-    - SED拟合成功后，会生成一个新的配置文件，该文件是步骤5的输入文件
+阶段四. SED拟合
+SED拟合通常需要基于最优的Image拟合（在阶段三中已经确认）：
+* 调用`run_galfits_sed_fitting`进行SED fitting。注意：`run_galfits_sed_fitting`使用的配置文件是最优的Image fitting使用的配置文件，同时，由于SED拟合需要基于image fitting得到的星系成分参数进行质量估计，需要指定最优image fitting对应的输出目录（通常是output目录下的某个子目录，例如20260414T093323.c1993a48）
+    - SED拟合只需要成功拟合一次即可
+    - 若SED拟合失败，需要分析原因并重新SED拟合
+    - SED拟合成功后，会生成一个新的配置文件，该文件是Image-SED联合拟合的输入文件
 
-* 步骤5. 在分别完成Image拟合和SED拟合后，需要调用`run_galfits_image_sed_fitting`对image和SED进行一次联合拟合，输入配置文件是SED拟合成功后生成的配置文件            
-    - Image-SED拟合只需要成功一次即可；若Image-SED拟合失败，需要分析原因并重新Image-SED拟合
+阶段五. Image-SED联合拟合
+* 调用`run_galfits_image_sed_fitting`对image和SED进行一次联合拟合，输入配置文件是SED拟合成功后生成的配置文件            
+    - Image-SED拟合只需要成功一次即可
+    - 若Image-SED拟合失败，需要分析原因并重新Image-SED拟合
+    - Image-SED联合拟合成功后，标志着当前星系的拟合任务完成
 
     
 ## 待分析星系
