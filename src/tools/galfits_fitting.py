@@ -52,7 +52,7 @@ def load_gs_model(config_lyric, workplace, prior_path = None,):
 
         Myfitter.loose_fix_pars()
         Myfitter.cal_model_image()
-
+    
     return Myfitter, targ
 
 def extract_band_fits_pairs(config_lyric):
@@ -491,8 +491,9 @@ def update_lyric_with_gssummaries(
                 |
 
     Args:
-        lyric_file: Path to the target lyric file to be updated.
+        lyric_file: Path to the original lyric file. 
         mock_root: Path to the mock root directory.
+        new_lyric_file: Path to save the updated lyric file. If None, the original lyric file will be overwritten.
 
     Returns:
         Dictionary with status and message:
@@ -557,17 +558,22 @@ def PureSEDFitting(lyric_file, workplace, new_lyric_file, mock_root=None, args=[
     return {"status": "success", "message": "pure sed fitting success"}
 
 if __name__ == '__main__':
+    print(f'CUDA_VISIBLE_DEVICES: {os.environ.get("CUDA_VISIBLE_DEVICES") or "None"}')
     lyric_file = "/home/jiangbo/galaxy_morphology_mcp/GALFITS_examples/latest/configs/obj692"
     new_lyric_file = "/tmp/updated.lyric"
     workplace = "/home/jiangbo/galaxy_morphology_mcp/GALFITS_examples/latest/results/obj692"
-    args = ["--fit_method", "ES"]
+    args = ["--fit_method", "ES", "--priorpath", "/tmp/galfits_fitting_s6tn832o/priorpath/97.prior"]
 
-    result = ImageFitting(lyric_file=lyric_file, workplace=workplace, args=args)
-    print(result)
+    # result = ImageFitting(lyric_file=lyric_file, workplace=workplace, args=args)
+    # print(result)
 
+    lyric_file = "/tmp/galfits_fitting_s6tn832o/97.lyric"
+    workplace =  "/tmp/galfits_fitting_s6tn832o/result/output"
+    new_lyric_file = "/tmp/updated.lyric"
+    args = ["--fit_method", "ES", "--priorpath", "/tmp/galfits_fitting_s6tn832o/priorpath/97.prior"]
     result = PureSEDFitting(lyric_file=lyric_file, workplace=workplace, new_lyric_file=new_lyric_file, mock_root=None, args=args)
     print(result)
 
-    result = ImageSEDFitting(lyric_file=new_lyric_file, workplace=workplace + "_2", args=args)
-    print(result)
+    # result = ImageSEDFitting(lyric_file=new_lyric_file, workplace=workplace + "_2", args=args)
+    # print(result)
 
