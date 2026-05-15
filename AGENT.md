@@ -32,7 +32,7 @@
         3. Ring 成分认定：振作用会形成核环（Nuclear ring）、内环（Inner ring）或外环（Outer ring）。
             1. 残差图中出现完整的闭合亮环，可以通过增加被截断的 Sersic 成分（Truncated Sersic）或高斯环（Gaussian ring）来进行拟合补偿。
         4. Nucleus 成分的认定方法
-            1. 核星团（Nuclear Star Cluster, NSC）： 需要一个 Re 有效半径非常小的高 $ n $ 值（>4） Sersic 成分。伪核球（Pseudobulge）： 内部存在额外的致密结构。
+            1. 核星团（Nuclear Star Cluster, NSC）： 需要一个 Re 有效半径非常小（如 ~ 0.5 px）的高 $ n $ 值（>4） Sersic 成分。伪核球（Pseudobulge）： 内部存在额外的致密结构。
             2. 活动星系核（AGN）： 通常需要用一个点源函数（PSF）来额外拟合。
         5. 高阶残差：偏心成分、壳层（Shells）或潮汐尾 （根据科学目标而定，只有用户特别要求，才需要考虑高阶残差）
             1. 现象：偏心成分：明显的“偶极” (Dipole) 模式，通常是沿着偏心的轴线一侧比另一侧更亮。
@@ -44,9 +44,9 @@
     5. 调参策略：
         1. 基于上一轮的拟合结果副本的基础上预估与修改，起到逐渐改善效果的目的，不要每次都从头开始
         2. 一些例子
-            1. 当遇到 Bulge 的 Re 很小时（比如远小于 1 个像素）；
+            1. 当遇到 Bulge 的 Re 很小时（比如小于 0.2 px）；
                 - 策略1：根据残差特点，调整 Disk 与 Bulge 的初始，这是必要步骤
-                    - 比如：Bulge < 0.2 像素， 但星系边缘还存在明显的正残差，说明 Disk的Re设置过低，同时挤压了 Bulge 的 Re，导致 Bulge 的 Re 过小。需要同步调高两者的 Re 初值
+                    - 比如：Bulge < 0.2 px， 但星系边缘还存在明显的正残差，说明 Disk的Re设置过低，同时挤压了 Bulge 的 Re，导致 Bulge 的 Re 过小。需要同步调高两者的 Re 初值
                     - 其他残差特征意味着需要其他调整
                 - 当策略1 无效时，根据物理意义分析，才考虑把 Bulge 换成 PSF 进行拟合
         3. 如果新增成分拟合的位置与原来的偏差较大（比如偏离距离大于 Re）；可以考虑添加一个约束，限制偏移量
@@ -183,7 +183,7 @@ G) galaxy.cons      # Parameter constraint file (empty string)
 
 - 要增加成分BULGE： Component type选用 sersic.
 - 要增加edge-on的星系盘：Component type选用 edgedisk。
-- 当添加的 Bulge的 Re远远小于 1 pixel, 需要更换类型， 采用Component type为psf
+- 当添加的 Bulge的 Re 小于 0.2 px, 需要更换类型， 采用Component type为psf
 - 要增加棒 Bar：Component type选用  n~0.5 的 Sersic 模型.
 - 要增加指数衰减的星系盘disk: 选择 n=1 的 Sersic 模型。
 - 如果星系已经有一个 Disk 成分了，针对星系外围（Outskirt）未拟合上的情况，可以添加第二个 Disk 成分或 Sérsic 成分，以捕捉更延展的结构，

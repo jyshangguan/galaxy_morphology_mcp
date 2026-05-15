@@ -85,10 +85,14 @@ def _generate_subcomps(param_file: str, working_dir: str) -> tuple[list, list] |
 
         comp_images = []
         comp_types = []
+        known_components = {"sersic", "expdisk", "edgedisk", "devauc", "king",
+                            "nuker", "psf", "gaussian", "moffat", "ferrer", "sky"}
         with fits.open(subcomps_path) as hdul:
-            for i in range(2, len(hdul)):
-                comp_images.append(hdul[i].data.astype(np.float64))
+            for i in range(1, len(hdul)):
                 obj = hdul[i].header.get("OBJECT", f"Component {i-1}")
+                if obj.lower() not in known_components:
+                    continue
+                comp_images.append(hdul[i].data.astype(np.float64))
                 comp_types.append(obj.lower())
 
         return (comp_images, comp_types) if comp_images else None
@@ -268,7 +272,8 @@ def create_comparison_png(
         ax_sb_resid = fig.add_subplot(gs_sb[1], sharex=ax_sb)
         render_sb_profile(ax_sb, ax_sb_resid, original_data, model_data,
                           param_file, components, fit_region,
-                          comp_images=comp_images, comp_types=comp_types)
+                          comp_images=comp_images, comp_types=comp_types,
+                          mask=mask)
 
         # Save figure
         fits_dir = os.path.dirname(fits_file)
